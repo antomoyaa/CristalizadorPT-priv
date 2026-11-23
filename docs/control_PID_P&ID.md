@@ -59,7 +59,8 @@ El análisis de los registros operacionales reales de SQM (`10–15 nov 2026`, s
 > **Validación de robustez y economía:** Debido a la inercia del inventario `A3110 + A3210 + B3520` ($\tau \approx 2{,}2\text{ h}$), realimentar `AIC 3522` con el **muestreo de cromatografía iónica de laboratorio cada 2 horas** mantiene $0{,}0\%$ de violaciones tanto en la campaña de 4 días como en el mes completo (ahorrando **$1\,958\text{ m}^3$ de agua en 4 días**, $-95{,}1\%$, y evitando la inversión de un cromatógrafo industrial en línea). El escenario de $\text{Mg}^{2+} = 43\text{–}46\text{ g/L}$ establece el límite operativo superior de la válvula de purga ($61{,}3\text{ m}^3/\text{h}$).
 
 ### 3.3 Validación Automatizada del Repositorio
-* **Suite `pytest`:** `93 passed, 2 skipped` (`tests/test_core.py`, `tests/test_datos_y_bases.py`, `tests/test_control_integrado.py`, `tests/test_revision_vacio_trim_balance.py` y `tests/test_sostenible_y_avanzado.py`).
+* **Restricción dura de $\text{KClO}_4$ (`dilution_kclo4_hard_constraint`):** Acoplada en `msmpr_core/control.py` + `dpbe.py` ($\ln\Gamma_{\text{KClO}_4,0} = 1{,}571$, $T_{\text{sat}} = 41{,}29\text{ }^\circ\text{C}$).
+* **Suite `pytest`:** `96 passed, 2 skipped` (`tests/test_core.py`, `tests/test_datos_y_bases.py`, `tests/test_control_integrado.py`, `tests/test_revision_vacio_trim_balance.py` y `tests/test_sostenible_y_avanzado.py`).
 * **Figura de síntesis:** `docs/fig/10_replay_campana_real_SQM.png`.
 
 ---

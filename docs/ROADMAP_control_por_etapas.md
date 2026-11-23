@@ -53,9 +53,10 @@ Como el volumen del cristalizador ($V$) es un proceso integrador sin estado esta
 
 ## Etapa 5 — Prealimentación Dinámica, *Override* de Sobresaturación y Régimen Sostenible (`COMPLETADO`)
 
-Implementado en `msmpr_core/control.py`, `msmpr_core/dpbe.py`, `msmpr_core/plant.py`, `msmpr_core/params.py` y `msmpr_core/replay.py` (**93 tests unitarios en verde**):
+Implementado en `msmpr_core/control.py`, `msmpr_core/dpbe.py`, `msmpr_core/plant.py`, `msmpr_core/params.py` y `msmpr_core/replay.py` (**96 tests unitarios en verde**):
 
 1. **Compensador *Lead-Lag* (`LeadLagCompensator`):** Discretización implícita incondicionalmente estable para sincronizar la acción anticipativa de `AIT 3105 → FFIC 3102` con el tiempo de residencia hidráulico entre `B2510` y `A3110`.
 2. **Selector *Override* de Sobresaturación (`supersaturation_override_limit`):** Límite superior $R_{\max,\sigma}$ en `FFIC 3102` que garantiza $C_{\text{mix}} = C_{\text{in}}/(1+R) \ge (1+\sigma_{\min})C^*$, evitando la redisolución del lecho cristalino y derivando el exceso de carga de $\text{ClO}_4^-$ hacia `AIC 3522 → FV 3522`.
 3. **Cinética de disolución en subsaturación (`dpbe.dissolution_rate_m_s`):** Rama negativa $D(-S) < 0$ cuando $C < C^*$ para cuantificar el riesgo de sobre-dilución.
 4. **Escalado sostenible de dilución ($0{,}50\text{ t/h}$ nominal):** Parametrización de `F_303_nom`, límites `[0.20, 2.50] t/h` y escalado proporcional de `K_TRIM_AIT`, reduciendo el agua media a **$0{,}67\text{ t/h}$** (máximo **$0{,}78\text{ t/h}$**, ahorro de **$97{,}5\%$** vs. diseño y **$96{,}6\%$** vs. operación real SQM) con producto refinado en **$22{,}65\text{ ppm}$** ($< 40\text{ ppm}$).
+5. **Restricción dura de saturación de $\text{KClO}_4$ (`dpbe.m_ClO4_sat` / `T_saturacion_KClO4` + `control.dilution_kclo4_hard_constraint`):** Integra la curva Apelblat + ion común + calibración del ensayo SQM ($\ln\Gamma_{\text{KClO}_4,0} = 1{,}571$, $T_{\text{sat}} = 41{,}29\text{ }^\circ\text{C}$ para `SSKd`, $k_{\text{Mg}}$ parametrizable) junto al *Override* de $\text{KNO}_3$. Bajo el tope sostenible ($2{,}50\text{ t/h}$), cuando la holgura de $\text{KClO}_4$ exige más agua ($16{,}1\text{ t/h}$ a $43\text{ }^\circ\text{C}$ sin purga), clampa la dilución, activa `purge_required = True` y deriva exactamente el $7{,}4\%$ de reducción de $\text{ClO}_4^-$ hacia `AIC 3522 → FV 3522`.

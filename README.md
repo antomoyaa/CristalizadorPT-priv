@@ -1,7 +1,7 @@
 # Control PID y Estrategia *Plantwide* — Cristalizadores de $\text{KNO}_3$ (Planta NPT-3, SQM)
 
 > **Rama:** `PID` | **Alcance:** Tren Integrado **Área 2000 (`B2510`) → Área 3000 (`A3110 / A3210 / B3520`) → Área 6000 (Refinación)**  
-> **Estado de validación:** `93 passed, 2 skipped` (`pytest tests/`)
+> **Estado de validación:** `96 passed, 2 skipped` (`pytest tests/`)
 
 ---
 
@@ -48,9 +48,9 @@ Este repositorio contiene el modelo fenomenológico (`msmpr_core`), los controla
 
 * **`msmpr_core/`**: Paquete principal de simulación y control.
   * `params.py`: Perfiles termodinámicos (`literatura`, `calibracion`, `planta_sqm`) y `SOSTENIBLE_DILUCION_OVERRIDES`.
-  * `dpbe.py`: Balance poblacional discretizado, cinética de crecimiento/nucleación y rama de disolución en subsaturación ($C < C^*$).
+  * `dpbe.py`: Balance poblacional discretizado, cinética de crecimiento/nucleación, rama de disolución en subsaturación ($C < C^*$) y termodinámica multicomponente calibrada de $\text{KClO}_4/\text{KNO}_3$ (`m_ClO4_sat`, `T_saturacion_KClO4`, $\ln\Gamma_{\text{KClO}_4,0} = 1{,}571$).
   * `plant.py`: Modelo dinámico `Plant`, simulador acoplado NPT-3 (`simulate_plant_npt3_calibrated`, parametrizado para régimen sostenible) y acoplamiento `magnesium_perchlorate_coupling()`.
-  * `control.py`: Controladores PID comerciales con anti-windup, `autotune` SIMC/IMC, `routh_hopf_analysis`, `compute_rga`, `rga_from_plant`, `LeadLagCompensator` y `supersaturation_override_limit`.
+  * `control.py`: Controladores PID comerciales con anti-windup, `autotune` SIMC/IMC, `routh_hopf_analysis`, `compute_rga`, `rga_from_plant`, `LeadLagCompensator`, `supersaturation_override_limit` y restricción dura de perclorato `dilution_kclo4_hard_constraint`.
   * `replay.py`: Carga sincronizada de campañas reales SQM y simulador contrafactual (4 días, 30 días y estrés $\text{Mg}^{2+}$).
   * `datos.py`: Conversor y validadores de bases de datos experimentales.
 * **`notebooks/`**:
@@ -58,7 +58,7 @@ Este repositorio contiene el modelo fenomenológico (`msmpr_core`), los controla
   2. `05_Control_PID_dinamico.ipynb`: Lazo abierto, lazo cerrado ante 12 perturbaciones ($\pm$) con ruido coloreado, seguimiento 2-DOF y estabilidad Routh-Hopf ($K_{cu}$).
   3. `06_Control_por_etapas_dilucion.ipynb`: Cierre escalonado `FIRC 3103 → FFIC 3102 → AIT 3105 + AIC 3522`, reciclo/magnesio y *replay* de la campaña real SQM.
 * **`docs/`**: Documentación técnica (`control_PID_P&ID.md`, `ROADMAP_control_por_etapas.md`) y figuras exportadas (`docs/fig/`).
-* **`tests/`**: Suite de validación automatizada (`93 passed, 2 skipped`).
+* **`tests/`**: Suite de validación automatizada (`96 passed, 2 skipped`).
 
 ---
 
@@ -68,7 +68,7 @@ Este repositorio contiene el modelo fenomenológico (`msmpr_core`), los controla
 # 1. Instalar dependencias
 pip install -r requirements.txt
 
-# 2. Ejecutar toda la suite de pruebas unitarias (93 passed, 2 skipped)
+# 2. Ejecutar toda la suite de pruebas unitarias (96 passed, 2 skipped)
 python3 -m pytest tests/ -v
 
 # 3. Verificar régimen sostenible (0.50 t/h nominal) en el tren acoplado NPT-3
@@ -76,11 +76,14 @@ python3 -c "from msmpr_core import plant; df = plant.simulate_plant_npt3_calibra
 
 # 4. Verificar matriz RGA 3x3 e Índice de Niederlinski en A3110
 python3 -c "import numpy as np, pandas as pd; from msmpr_core import params, plant, control as C; pl = plant.Plant(params.make_params()); x0, u0, d0 = pl.steady_state(alpha=0.25); G, lam, cvs, mvs = C.rga_from_plant(pl, x0, u0, d0); print(pd.DataFrame(lam, index=cvs, columns=mvs).round(3)); print('NI =', round(np.linalg.det(G)/np.prod(np.diag(G)), 2))"
+
+# 5. Verificar solubilidad calibrada de KClO4 y restricción dura (EDT 4.3)
+python3 -c "from msmpr_core import dpbe, control as C; o = C.dilution_kclo4_hard_constraint(660.0, 600.0, 0.50/378.18, T_stage2_C=43.0, R_min=0.20/378.18, R_max=2.50/378.18); print('T_sat KClO4 (SSKd):', round(dpbe.T_saturacion_KClO4(dpbe.COMP_SSKD_DEFAULT), 2), '°C | purge_required:', o['purge_required'], '| red_ClO4:', f\"{100*o['clo4_reduction_needed_frac']:.1f}%\")"
 ```
 
 ---
 
 ## 5. Próxima Iteración (Integración entre Ramas)
 
-* Reemplazar la solubilidad *placeholder* del perfil `planta_sqm` con la termodinámica multicomponente calibrada ($\Gamma_{\text{KNO}_3}$, $\text{KClO}_4$, $\text{Mg}^{2+}$) desde `modelo-cristalizador2-kno3`.
+* Completar la integración termodinámica desde `Modelo_Cristalizador_Solubilidad`: $\text{KClO}_4$ ($\ln\Gamma_{\text{KClO}_4,0} = 1{,}571$) ya está acoplado en `dpbe.py`/`control.py`; resta actualizar $\Gamma_{\text{KNO}_3}$ y $k_{\text{Mg}}$ cuando el equipo cierre los ensayos de MLK y $\text{Mg}^{2+}$.
 * Aplicar los parámetros cinéticos finales ($k_G, k_B, K_d$) desde `estimacion-parametros` vía `params.apply_calibration(...)` y re-ejecutar `autotune` + `pytest`.
