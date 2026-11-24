@@ -307,7 +307,7 @@ def simulate(plant: Plant, x0, t_end_s, dt_s, controller, disturbance=None, log_
 
 #Se incorpora al final de **msmpr_core/plant.py** la función `simulate_plant_npt3_calibrated`, que extiende el modelo de **A3110** hacia las etapas acopladas de **B2510** (Área 2000), **A3210**, **B3520** (con el lazo de purga **AIC 3522**) y el Área 6000 de Refinación ($w_{\text{KNO}_3,\text{in}} = 0.95678$, especificación $< 40\text{ ppm}$):
 # === ACOPLAMIENTO INTEGRADO PLANTA NPT-3 (ÁREAS 2000 - 3000 - 6000) ===
-from msmpr_core.control import DelayedSensor, CommercialPID
+from msmpr_core.control import DiscreteFilteredSensor, CommercialPID
 import pandas as pd
 
 # Constantes conciliadas desde Balance_de_masa_segun_PFD_completo.xlsx, v6 y Base de datos.xlsx
@@ -381,13 +381,13 @@ def simulate_plant_npt3_calibrated(
     is_osc = tuning_mode == "ZN_oscillatory"
     is_hopf = tuning_mode == "Hopf_limit_cycle"
 
-    sens_TIR3101 = DelayedSensor(1.20, 0.5, dt_min, T1)
-    sens_TIR3201 = DelayedSensor(1.20, 0.5, dt_min, T2)
-    sens_DIR3101 = DelayedSensor(0.80, 0.4, dt_min, xS1, resolution=0.0002)
-    sens_DIR3201 = DelayedSensor(0.80, 0.4, dt_min, xS2, resolution=0.0002)
-    sens_AIT3105 = DelayedSensor(theta_AIT_min, 2.0, dt_min, w_ClO4_pre)
-    sens_AIC3522 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520)
-    sens_FIRC3103 = DelayedSensor(0.10, 0.08, dt_min, F_303_actual)
+    sens_TIR3101 = DiscreteFilteredSensor(1.20, 0.5, dt_min, T1)
+    sens_TIR3201 = DiscreteFilteredSensor(1.20, 0.5, dt_min, T2)
+    sens_DIR3101 = DiscreteFilteredSensor(0.80, 0.4, dt_min, xS1, resolution=0.0002)
+    sens_DIR3201 = DiscreteFilteredSensor(0.80, 0.4, dt_min, xS2, resolution=0.0002)
+    sens_AIT3105 = DiscreteFilteredSensor(theta_AIT_min, 2.0, dt_min, w_ClO4_pre)
+    sens_AIC3522 = DiscreteFilteredSensor(10.0, 2.0, dt_min, C_ClO4_B3520)
+    sens_FIRC3103 = DiscreteFilteredSensor(0.10, 0.08, dt_min, F_303_actual)
 
     # Sintonias de T: Hopf = Kcu (limite de estabilidad); Z-N PI = 0.45 Kcu, tauI = Pu/1.2 (decaimiento ~1/4 en la simulacion);
     # T-L amortiguada = valores historicos (Kc = 0.42 Kcu, con accion derivativa).
@@ -422,8 +422,8 @@ def simulate_plant_npt3_calibrated(
     ti_L = LEVEL["tauI_factor"] * LEVEL["tauc_min"]
     pid_LIC1 = CommercialPID(kc_L1, ti_L, 0.0, 1.0, LEVEL["F_nom"], 250.0, 520.0)
     pid_LIC2 = CommercialPID(kc_L2, ti_L, 0.0, 1.0, LEVEL["F_nom"], 250.0, 520.0)
-    sens_LIC1 = DelayedSensor(0.20, 0.20, dt_min, 1.0)
-    sens_LIC2 = DelayedSensor(0.20, 0.20, dt_min, 1.0)
+    sens_LIC1 = DiscreteFilteredSensor(0.20, 0.20, dt_min, 1.0)
+    sens_LIC2 = DiscreteFilteredSensor(0.20, 0.20, dt_min, 1.0)
     pid_AIC3522 = CommercialPID(-0.48 if is_osc else -0.28, 18.0 if is_osc else 45.0, 0.0, 4.00, 0.22, 0.08, 0.65)
     pid_FIRC3103 = CommercialPID(Kc=1.25, tau_I=0.45, tau_D=0.0, sp=F_303_nom, u_bias=F_303_nom, u_min=F_303_min, u_max=F_303_max)
 
@@ -582,14 +582,14 @@ def simular_planta_agua_dilucion_magnesio(
     M_KNO3_prod = 67.5 if recycle_mode == "no_recycle_actual" else 74.5
 
     ns = 1.0 if include_noise else 0.0
-    s_TIR1 = DelayedSensor(1.0, 0.4, dt_min, T1, noise_std=0.05 * ns, seed=11)
-    s_TIR2 = DelayedSensor(1.0, 0.4, dt_min, T2, noise_std=0.05 * ns, seed=12)
-    s_DIR1 = DelayedSensor(0.6, 0.3, dt_min, xS1, resolution=0.0002, noise_std=0.0003 * ns, seed=13)
-    s_DIR2 = DelayedSensor(0.6, 0.3, dt_min, xS2, resolution=0.0002, noise_std=0.0003 * ns, seed=14)
-    s_AIT3105 = DelayedSensor(theta_AIT_min, 2.0, dt_min, w_ClO4_pre, noise_std=18.0 * ns, seed=15)
-    s_AIT_Mg = DelayedSensor(theta_AIT_min, 2.0, dt_min, w_Mg_pre, noise_std=35.0 * ns, seed=16)
-    s_AIC3522 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.025 * ns, seed=17)
-    s_FIRC3103 = DelayedSensor(0.10, 0.08, dt_min, F_303_actual, noise_std=0.15 * ns, seed=18)
+    s_TIR1 = DiscreteFilteredSensor(1.0, 0.4, dt_min, T1, noise_std=0.05 * ns, seed=11)
+    s_TIR2 = DiscreteFilteredSensor(1.0, 0.4, dt_min, T2, noise_std=0.05 * ns, seed=12)
+    s_DIR1 = DiscreteFilteredSensor(0.6, 0.3, dt_min, xS1, resolution=0.0002, noise_std=0.0003 * ns, seed=13)
+    s_DIR2 = DiscreteFilteredSensor(0.6, 0.3, dt_min, xS2, resolution=0.0002, noise_std=0.0003 * ns, seed=14)
+    s_AIT3105 = DiscreteFilteredSensor(theta_AIT_min, 2.0, dt_min, w_ClO4_pre, noise_std=18.0 * ns, seed=15)
+    s_AIT_Mg = DiscreteFilteredSensor(theta_AIT_min, 2.0, dt_min, w_Mg_pre, noise_std=35.0 * ns, seed=16)
+    s_AIC3522 = DiscreteFilteredSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.025 * ns, seed=17)
+    s_FIRC3103 = DiscreteFilteredSensor(0.10, 0.08, dt_min, F_303_actual, noise_std=0.15 * ns, seed=18)
 
     pid_TIR1 = CommercialPID(0.0055 * VAC["Kc_scale1"], 9.0, 0.4, 55.0, VAC["P1_nom"], *VAC["P1_lim"], beta=0.5)
     pid_TIR2 = CommercialPID(0.0055 * VAC["Kc_scale2"], 9.0, 0.4, 40.0, VAC["P2_nom"], *VAC["P2_lim"], beta=0.5)
@@ -739,9 +739,9 @@ def simular_AIT_AIC_por_flujo_agua(
     M_KNO3_prod = 72.8
 
     ns = 1.0 if include_noise else 0.0
-    s_AIT3105 = DelayedSensor(10.0, 2.0, dt_min, w_ClO4_pre, noise_std=15.0 * ns, seed=21)
-    s_AIC3522 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.02 * ns, seed=22)
-    s_FIRC3103 = DelayedSensor(0.10, 0.08, dt_min, F_303_actual, noise_std=0.12 * ns, seed=23)
+    s_AIT3105 = DiscreteFilteredSensor(10.0, 2.0, dt_min, w_ClO4_pre, noise_std=15.0 * ns, seed=21)
+    s_AIC3522 = DiscreteFilteredSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.02 * ns, seed=22)
+    s_FIRC3103 = DiscreteFilteredSensor(0.10, 0.08, dt_min, F_303_actual, noise_std=0.12 * ns, seed=23)
 
     pid_FIRC3103 = CommercialPID(1.30, 0.40, 0.0, F_303_nom, F_303_nom, F_303_min, F_303_max)
     pid_AIC3522 = CommercialPID(-0.35, 22.0, 0.0, 4.02, 0.25, 0.12, 0.80)
@@ -858,10 +858,10 @@ def simular_robustez_parametros(
     d50_2 = d50_base
     w_ClO4_ML_ref, F_303_actual, alpha_purge = 738.0, F_303_nom, 0.25
 
-    s_AIT3105 = DelayedSensor(10.0, 2.0, dt_min, w_ClO4_pre, noise_std=14.0, seed=seed + 1)
-    s_AIT_Mg = DelayedSensor(10.0, 2.0, dt_min, w_Mg_pre, noise_std=30.0, seed=seed + 2)
-    s_AIC3522 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.018, seed=seed + 3)
-    s_FIRC3103 = DelayedSensor(0.10, 0.08, dt_min, F_303_actual, noise_std=0.10, seed=seed + 4)
+    s_AIT3105 = DiscreteFilteredSensor(10.0, 2.0, dt_min, w_ClO4_pre, noise_std=14.0, seed=seed + 1)
+    s_AIT_Mg = DiscreteFilteredSensor(10.0, 2.0, dt_min, w_Mg_pre, noise_std=30.0, seed=seed + 2)
+    s_AIC3522 = DiscreteFilteredSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.018, seed=seed + 3)
+    s_FIRC3103 = DiscreteFilteredSensor(0.10, 0.08, dt_min, F_303_actual, noise_std=0.10, seed=seed + 4)
 
     pid_FIRC3103 = CommercialPID(1.30, 0.40, 0.0, F_303_nom, F_303_nom, F_303_min, F_303_max)
     pid_AIC3522 = CommercialPID(-0.48, 16.0, 0.0, 4.00, 0.25, 0.12, 0.85)
@@ -960,11 +960,11 @@ def simular_recirculacion_y_magnesio(
     F_303_actual = F_303_nom
     M_KNO3 = 66.5 if modo_reciclo in ("sin_reciclo_actual", "no_recycle_actual") else 74.0
 
-    s_TIR1 = DelayedSensor(1.0, 0.5, dt_min, T1)
-    s_TIR2 = DelayedSensor(1.0, 0.5, dt_min, T2)
-    s_AIT3105 = DelayedSensor(10.0, 2.0, dt_min, w_ClO4_pre)
-    s_AIC3522 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520)
-    s_FIRC3103 = DelayedSensor(0.10, 0.08, dt_min, F_303_actual)
+    s_TIR1 = DiscreteFilteredSensor(1.0, 0.5, dt_min, T1)
+    s_TIR2 = DiscreteFilteredSensor(1.0, 0.5, dt_min, T2)
+    s_AIT3105 = DiscreteFilteredSensor(10.0, 2.0, dt_min, w_ClO4_pre)
+    s_AIC3522 = DiscreteFilteredSensor(10.0, 2.0, dt_min, C_ClO4_B3520)
+    s_FIRC3103 = DiscreteFilteredSensor(0.10, 0.08, dt_min, F_303_actual)
 
     pid_TIR1 = CommercialPID(0.0055 * VAC["Kc_scale1"], 9.0, 0.4, 55.0, VAC["P1_nom"], *VAC["P1_lim"])
     pid_TIR2 = CommercialPID(0.0055 * VAC["Kc_scale2"], 9.0, 0.4, 40.0, VAC["P2_nom"], *VAC["P2_lim"])

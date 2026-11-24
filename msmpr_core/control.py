@@ -90,66 +90,71 @@ class SampledSensor:
         return self.value
 
 
-class DelayedSensor:
-    """Medición continua con tiempo muerto compatible con PlantController (2 args) y modelo NPT-3 (4 a 7 args).
+class ContinuousDelaySensor:
+    """Medición con tiempo muerto puro para `PlantController` (dinámica continua, tiempo en SEGUNDOS).
 
-    ATENCIÓN UNIDADES: en modo PlantController (2 args) `delay_s` está en SEGUNDOS y el 2º arg es el valor inicial.
-    En modo NPT-3 (si se pasa dt_min o initial_val) el 1er arg es el retardo en MINUTOS y el 2º es la constante de
-    tiempo del filtro en minutos (tau_m). Preferir argumentos con nombre. TODO: separar en dos clases.
+    ContinuousDelaySensor(delay_s, initial=0.0);  read(t, true_value) -> valor retardado.
     """
 
-    def __init__(
-        self,
-        delay_s: float,
-        initial: float = 0.0,
-        dt_min: float | None = None,
-        initial_val: float | None = None,
-        resolution: float = 0.0,
-        noise_std: float = 0.0,
-        seed: int = 42,
-    ):
-        if dt_min is None and initial_val is None:
-            # Modo original de PlantController: DelayedSensor(delay_s, initial)
-            self.delay = float(delay_s)
-            self.value = float(initial)
-            self._queue = deque()
-            self._npt3_mode = False
-        else:
-            # Modo discreto para modelo NPT-3: DelayedSensor(theta_min, tau_m_min, dt_min, initial_val, resolution, noise_std, seed)
-            theta_min = float(delay_s)
-            tau_m_min = float(initial)
-            self.delay_steps = max(int(round(theta_min / float(dt_min))), 1)
-            self.buffer = deque([initial_val] * self.delay_steps, maxlen=self.delay_steps)
-            self.tau_m = tau_m_min
-            self.dt = float(dt_min)
-            self.filtered_val = float(initial_val)
-            self.res = float(resolution)
-            self.noise_std = float(noise_std)
-            self.rng = np.random.default_rng(seed)
-            self._npt3_mode = True
+    def __init__(self, delay_s: float, initial: float = 0.0):
+        self.delay = float(delay_s)      # [s]
+        self.value = float(initial)
+        self._queue = deque()
 
-    def read(self, t_or_val, true_value=None):
-        if not self._npt3_mode and true_value is not None:
-            # Llamado por PlantController: sensor.read(t, true_value)
-            t = float(t_or_val)
-            self._queue.append((t + self.delay, true_value))
-            while self._queue and self._queue[0][0] <= t + 1e-9:
-                self.value = self._queue.popleft()[1]
-            return self.value
+    def read(self, t: float, true_value: float) -> float:
+        t = float(t)
+        self._queue.append((t + self.delay, true_value))
+        while self._queue and self._queue[0][0] <= t + 1e-9:
+            self.value = self._queue.popleft()[1]
+        return self.value
+
+
+class DiscreteFilteredSensor:
+    """Sensor discreto del modelo NPT-3: retardo + filtro de 1er orden + resolución + ruido. Tiempo en MINUTOS.
+
+    DiscreteFilteredSensor(theta_min, tau_m_min, dt_min, initial_val, resolution=0.0, noise_std=0.0, seed=42);
+    read(true_val) -> medición (retardada theta_min, filtrada con constante tau_m_min, cuantizada a `resolution`).
+    """
+
+    def __init__(self, theta_min: float, tau_m_min: float, dt_min: float, initial_val: float,
+                 resolution: float = 0.0, noise_std: float = 0.0, seed: int = 42):
+        self.delay_steps = max(int(round(float(theta_min) / float(dt_min))), 1)
+        self.buffer = deque([initial_val] * self.delay_steps, maxlen=self.delay_steps)
+        self.tau_m = float(tau_m_min)
+        self.dt = float(dt_min)
+        self.filtered_val = float(initial_val)
+        self.res = float(resolution)
+        self.noise_std = float(noise_std)
+        self.rng = np.random.default_rng(seed)
+
+    def read(self, true_val: float) -> float:
+        val = float(true_val)
+        if self.noise_std > 0.0:
+            val += float(self.rng.normal(0.0, self.noise_std))
+        self.buffer.append(val)
+        delayed = self.buffer[0]
+        if self.tau_m > 0.0:
+            self.filtered_val += (self.dt / self.tau_m) * (delayed - self.filtered_val)
         else:
-            # Llamado por modelo NPT-3: sensor.read(true_val)
-            val = float(t_or_val)
-            if self.noise_std > 0.0:
-                val += float(self.rng.normal(0.0, self.noise_std))
-            self.buffer.append(val)
-            delayed = self.buffer[0]
-            if self.tau_m > 0.0:
-                self.filtered_val += (self.dt / self.tau_m) * (delayed - self.filtered_val)
-            else:
-                self.filtered_val = delayed
-            if self.res > 0.0:
-                return round(self.filtered_val / self.res) * self.res
-            return self.filtered_val
+            self.filtered_val = delayed
+        if self.res > 0.0:
+            return round(self.filtered_val / self.res) * self.res
+        return self.filtered_val
+
+
+class DelayedSensor:
+    """DEPRECADO: usar `ContinuousDelaySensor` (segundos, 2 args) o `DiscreteFilteredSensor` (minutos, >=4 args).
+
+    Se mantiene solo por compatibilidad: según los argumentos devuelve una instancia de una de las dos clases anteriores.
+    """
+
+    def __new__(cls, delay_s, initial=0.0, dt_min=None, initial_val=None, resolution=0.0, noise_std=0.0, seed=42):
+        import warnings
+        warnings.warn("DelayedSensor está deprecado: usar ContinuousDelaySensor o DiscreteFilteredSensor",
+                      DeprecationWarning, stacklevel=2)
+        if dt_min is None and initial_val is None:
+            return ContinuousDelaySensor(delay_s, initial)
+        return DiscreteFilteredSensor(delay_s, initial, dt_min, initial_val, resolution, noise_std, seed)
 
 
 # ------------------------------------------------------------------ identificación y sintonía
@@ -239,7 +244,7 @@ class PlantController:
             self.ait = {"cp_true": ait["cp_true"], "R_min": ait.get("R_min", 0.0), "R_max": ait.get("R_max", 3.0 * ratio_nom),
                         "CP_target": ait.get("CP_target", cp_nom / (1.0 + ratio_nom)),
                         "noise": ait.get("noise_rel", 0.0), "gain": ait.get("gain", 1.0), "R_nom": ratio_nom,
-                        "sensor": DelayedSensor(ait.get("delay_s", 0.0), cp_nom)}
+                        "sensor": ContinuousDelaySensor(ait.get("delay_s", 0.0), cp_nom)}
             self.last_R = ratio_nom
         self.noise_rel = noise_rel or {}
         self.rng = np.random.default_rng(seed)
@@ -605,8 +610,14 @@ def rga_from_plant(plant, x0, u0, d0,
                    mv_names=("m_evap", "Q_dil_cmd", "alpha"),
                    cv_names=("T_C", "slurry_density_kg_m3", "ppm_ClO4"),
                    rel_step=0.02, t_settle_s=28800.0, dt_s=5.0,
-                   hold_volume=True):
+                   hold_volume=True, volume_closure="Q_out"):
     """
+    volume_closure : "Q_out" (histórico) -> dV/dt=0 con Q_out; alpha solo reparte la descarga entre recirculación y
+        purga y el caudal de purga queda FIJADO por el balance de volumen (alpha pierde autoridad sobre ppm).
+        "Q_dil" -> estructura de inventario del lazo (B3520): el MV de calidad es el CAUDAL DE PURGA `Q_purge` [m3/s]
+        (= alpha*Q_out) y el volumen se cierra con el agua de dilución/reposición (Q_dil_cmd esclavo del nivel, con
+        corrección proporcional de V). Usar mv_names=("m_evap", "Q_out", "Q_purge") en ese modo.
+
     Estima la matriz de ganancias estacionarias G y su RGA (Bristol 1966) integrando
     directamente con plant.step() y leyendo el estado x = [V, T, C, CP, ..., Qd, S, Sm].
     Analiza por defecto el bloque 3x3 autorregulado:
@@ -615,6 +626,11 @@ def rga_from_plant(plant, x0, u0, d0,
     manteniendo dV/dt = 0 exacto mediante Q_out (emparejamiento V <-> Q_out, lambda = 1).
     """
     x0_arr = np.asarray(x0, dtype=float)
+    u0 = dict(u0)
+    if volume_closure == "Q_dil":
+        u0["Q_purge"] = float(u0["alpha"]) * float(u0["Q_out"])      # caudal de purga base [m3/s]
+    elif volume_closure != "Q_out":
+        raise ValueError("volume_closure debe ser 'Q_out' o 'Q_dil'")
     m0 = plant.metrics(x0_arr, u0, d0)
 
     def _get_val(cv, x_vec, m_dict):
@@ -640,7 +656,13 @@ def rga_from_plant(plant, x0, u0, d0,
 
         x = x0_arr.copy()
         for _ in range(n_steps):
-            if hold_volume and mv != "Q_out":
+            if volume_closure == "Q_dil":
+                # dV/dt = Q_stock + Qd - Q_purge - m_evap/rho = 0  ->  Qd esclavo (con corrección proporcional de V)
+                Qp, Qo = float(u_pert["Q_purge"]), float(u_pert["Q_out"])
+                u_pert["alpha"] = float(np.clip(Qp / max(Qo, 1e-9), 0.05, 0.99))
+                Qd_req = Qp + float(u_pert["m_evap"]) / rho_w - float(d0["Q_stock"]) + (float(x0_arr[0]) - float(x[0])) / 600.0
+                u_pert["Q_dil_cmd"] = max(Qd_req, 0.0)
+            elif hold_volume and mv != "Q_out":
                 # Balance exacto dV/dt = Q_stock + Qd - alpha * Q_out - m_evap / rho_w = 0
                 Qd_cur = float(x[10]) if len(x) > 10 else float(u_pert["Q_dil_cmd"])
                 u_pert["Q_out"] = max(

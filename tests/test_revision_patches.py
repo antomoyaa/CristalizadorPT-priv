@@ -64,3 +64,44 @@ def test_replay_fit_metrics_matriz_excedencias():
 
 def test_kno3_eq_ml_orden_de_magnitud():
     assert 0.5 < replay.kno3_eq_en_ml_t_m3() < 0.8
+
+
+# ----------------------------------------------------------------- sensores (DelayedSensor separado)
+def test_continuous_delay_sensor_segundos():
+    s = C.ContinuousDelaySensor(delay_s=10.0, initial=1.0)
+    out = [s.read(t, 5.0) for t in (0.0, 5.0, 9.9, 10.0, 15.0)]
+    assert out[:3] == [1.0, 1.0, 1.0] and out[3] == 5.0 and out[4] == 5.0
+
+
+def test_discrete_filtered_sensor_minutos_y_resolucion():
+    s = C.DiscreteFilteredSensor(theta_min=1.0, tau_m_min=0.0, dt_min=0.5, initial_val=2.0, resolution=0.1)
+    lecturas = [s.read(3.0) for _ in range(4)]
+    assert lecturas[0] == pytest.approx(2.0) and lecturas[-1] == pytest.approx(3.0)
+
+
+def test_delayed_sensor_shim_despacha_y_avisa():
+    with pytest.warns(DeprecationWarning):
+        a = C.DelayedSensor(10.0, 1.0)
+    with pytest.warns(DeprecationWarning):
+        b = C.DelayedSensor(1.0, 0.5, 0.5, 2.0)
+    assert isinstance(a, C.ContinuousDelaySensor) and isinstance(b, C.DiscreteFilteredSensor)
+
+
+# ----------------------------------------------------------------- RGA con purga como MV (cierre de volumen con dilución)
+def test_rga_purga_como_mv_es_independiente_de_T_y_densidad():
+    pl = plant.Plant(params.make_params())
+    x0, u0, d0 = pl.steady_state(alpha=0.25)
+    G, lam, cvs, mvs = C.rga_from_plant(pl, x0, u0, d0, mv_names=("m_evap", "Q_out", "Q_purge"),
+                                        volume_closure="Q_dil", t_settle_s=28800)
+    i, j = cvs.index("ppm_ClO4"), mvs.index("Q_purge")
+    assert lam[i, j] == pytest.approx(1.0, abs=0.05)
+    Qp = u0["alpha"] * u0["Q_out"]
+    ppm0 = pl.metrics(np.asarray(x0, float), dict(u0, Q_purge=Qp), d0)["ppm_ClO4"]
+    assert G[i, j] == pytest.approx(-ppm0 / Qp, rel=0.2)         # ppm ~ 1/purga
+
+
+def test_rga_volume_closure_invalido():
+    pl = plant.Plant(params.make_params())
+    x0, u0, d0 = pl.steady_state(alpha=0.25)
+    with pytest.raises(ValueError):
+        C.rga_from_plant(pl, x0, u0, d0, volume_closure="otro")
