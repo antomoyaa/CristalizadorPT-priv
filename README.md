@@ -5,6 +5,14 @@
 
 ---
 
+
+> **Alcance y limitaciones (leer antes de citar cifras).** Las cifras de este README (ahorro de agua, ppm, recuperación, beneficio neto de KNO₃)
+> provienen de simulación con parámetros *placeholder*: la solubilidad del KNO₃ es sintética (`planta_sqm.Cstar_ref`, pendiente 0,010 K⁻¹ frente a
+> ~0,03 K⁻¹ de Perry), los coeficientes de coprecipitación de KClO₄ (82–125 ppm por g/L) difieren entre simuladores y el beneficio neto de KNO₃ del
+> *replay* es una fórmula lineal con coeficientes sin calibrar (`replay.K_*`). El "0 % de violaciones" del *replay* es una propiedad del modelo
+> (función de umbral sobre la coprecipitación), no una validación: ver `replay.replay_fit_metrics` para cuantificar el ajuste del baseline.
+> El RGA/Niederlinski del A3110 aislado no es interpretable para `alpha` (con V fijo, el caudal de purga lo fija el balance de volumen); ver `control.mv_authority`.
+
 ## 1. Resumen Ejecutivo
 
 Este repositorio contiene el modelo fenomenológico (`msmpr_core`), los controladores regulatorios/supervisores y los cuadernos de validación dinámica para los cristalizadores evaporativos al vacío **A3110** y **A3210** de la planta NPT-3 de SQM, con el objetivo de mantener el producto refinado final **$< 40\text{ ppm}$ de $\text{ClO}_4^-$** bajo una estrategia hídricamente sostenible:
@@ -72,7 +80,7 @@ pip install -r requirements.txt
 python3 -m pytest tests/ -v
 
 # 3. Verificar régimen sostenible (0.50 t/h nominal) en el tren acoplado NPT-3
-python3 -c "from msmpr_core import plant; df = plant.simulate_plant_npt3_calibrated(use_AIT3105=True, use_AIC3255=True, tuning_mode='TL_damped', F_303_nom=0.50, F_303_min=0.20, F_303_max=2.50); print('F_303 prom:', round(df['F_303_actual_t_h'].mean(), 2), 't/h | ppm max Refi:', round(df['ppm_ClO4_final_6000'].max(), 2))"
+python3 -c "from msmpr_core import plant; df = plant.simulate_plant_npt3_calibrated(use_AIT3105=True, use_AIC3522=True, tuning_mode='TL_damped', F_303_nom=0.50, F_303_min=0.20, F_303_max=2.50); print('F_303 prom:', round(df['F_303_actual_t_h'].mean(), 2), 't/h | ppm max Refi:', round(df['ppm_ClO4_final_6000'].max(), 2))"
 
 # 4. Verificar matriz RGA 3x3 e Índice de Niederlinski en A3110
 python3 -c "import numpy as np, pandas as pd; from msmpr_core import params, plant, control as C; pl = plant.Plant(params.make_params()); x0, u0, d0 = pl.steady_state(alpha=0.25); G, lam, cvs, mvs = C.rga_from_plant(pl, x0, u0, d0); print(pd.DataFrame(lam, index=cvs, columns=mvs).round(3)); print('NI =', round(np.linalg.det(G)/np.prod(np.diag(G)), 2))"

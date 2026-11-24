@@ -82,7 +82,7 @@ def test_magnesium_perchlorate_coupling_monotonia():
 def test_modo_sostenible_05tph_cumple_kpi_y_ahorra_agua():
     """Con F_303_nom=0.50 t/h y K_trim escalado, el caudal se mantiene acotado y Área 6000 < 40 ppm."""
     df = plant.simulate_plant_npt3_calibrated(
-        use_AIT3105=True, use_AIC3255=True, tuning_mode="TL_damped",
+        use_AIT3105=True, use_AIC3522=True, tuning_mode="TL_damped",
         F_303_nom=0.50, F_303_min=0.20, F_303_max=2.50,
     )
     assert df["F_303_actual_t_h"].mean() < 2.0

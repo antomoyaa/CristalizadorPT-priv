@@ -305,7 +305,7 @@ def simulate(plant: Plant, x0, t_end_s, dt_s, controller, disturbance=None, log_
     return pd.DataFrame(rows)
 
 
-#Se incorpora al final de **msmpr_core/plant.py** la función `simulate_plant_npt3_calibrated`, que extiende el modelo de **A3110** hacia las etapas acopladas de **B2510** (Área 2000), **A3210**, **B3520** (con el lazo de purga **AIC 3255**) y el Área 6000 de Refinación ($w_{\text{KNO}_3,\text{in}} = 0.95678$, especificación $< 40\text{ ppm}$):
+#Se incorpora al final de **msmpr_core/plant.py** la función `simulate_plant_npt3_calibrated`, que extiende el modelo de **A3110** hacia las etapas acopladas de **B2510** (Área 2000), **A3210**, **B3520** (con el lazo de purga **AIC 3522**) y el Área 6000 de Refinación ($w_{\text{KNO}_3,\text{in}} = 0.95678$, especificación $< 40\text{ ppm}$):
 # === ACOPLAMIENTO INTEGRADO PLANTA NPT-3 (ÁREAS 2000 - 3000 - 6000) ===
 from msmpr_core.control import DelayedSensor, CommercialPID
 import pandas as pd
@@ -339,7 +339,7 @@ PFD_MG_CLO4 = {
 
 def simulate_plant_npt3_calibrated(
     use_AIT3105=True,
-    use_AIC3255=True,
+    use_AIC3522=True,
     tuning_mode="TL_damped",
     duration_min=300.0,
     dt_min=0.05,
@@ -350,11 +350,17 @@ def simulate_plant_npt3_calibrated(
     tauD_T_override=None,
     vac_limits_override=None,
     F_303_nom=F303_NOM, F_303_min=12.0, F_303_max=42.0,
+    *,
+    use_AIC3255=None,  # alias DEPRECADO de use_AIC3522 (tag antiguo)
 ):
     """Simula el tren integrado Área 2000 (B2510) -> Área 3000 (A3110/A3210/B3520) -> Área 6000.
 
     Integra las composiciones de Mg2+ y ClO4- de Balance_de_masa_segun_PFD_completo.xlsx, v6 y Base de datos.xlsx.
     """
+    if use_AIC3255 is not None:
+        import warnings
+        warnings.warn('use_AIC3255 está deprecado: usar use_AIC3522', DeprecationWarning, stacklevel=2)
+        use_AIC3522 = bool(use_AIC3255)
     n_steps = int(duration_min / dt_min)
     w_ClO4_pre = PFD_MG_CLO4["w_ClO4_pre_nom_ppm"]
     w_Mg_pre = PFD_MG_CLO4["w_Mg_pre_nom_ppm"]
@@ -380,7 +386,7 @@ def simulate_plant_npt3_calibrated(
     sens_DIR3101 = DelayedSensor(0.80, 0.4, dt_min, xS1, resolution=0.0002)
     sens_DIR3201 = DelayedSensor(0.80, 0.4, dt_min, xS2, resolution=0.0002)
     sens_AIT3105 = DelayedSensor(theta_AIT_min, 2.0, dt_min, w_ClO4_pre)
-    sens_AIC3255 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520)
+    sens_AIC3522 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520)
     sens_FIRC3103 = DelayedSensor(0.10, 0.08, dt_min, F_303_actual)
 
     # Sintonias de T: Hopf = Kcu (limite de estabilidad); Z-N PI = 0.45 Kcu, tauI = Pu/1.2 (decaimiento ~1/4 en la simulacion);
@@ -418,7 +424,7 @@ def simulate_plant_npt3_calibrated(
     pid_LIC2 = CommercialPID(kc_L2, ti_L, 0.0, 1.0, LEVEL["F_nom"], 250.0, 520.0)
     sens_LIC1 = DelayedSensor(0.20, 0.20, dt_min, 1.0)
     sens_LIC2 = DelayedSensor(0.20, 0.20, dt_min, 1.0)
-    pid_AIC3255 = CommercialPID(-0.48 if is_osc else -0.28, 18.0 if is_osc else 45.0, 0.0, 4.00, 0.22, 0.08, 0.65)
+    pid_AIC3522 = CommercialPID(-0.48 if is_osc else -0.28, 18.0 if is_osc else 45.0, 0.0, 4.00, 0.22, 0.08, 0.65)
     pid_FIRC3103 = CommercialPID(Kc=1.25, tau_I=0.45, tau_D=0.0, sp=F_303_nom, u_bias=F_303_nom, u_min=F_303_min, u_max=F_303_max)
 
     hist = []
@@ -462,7 +468,7 @@ def simulate_plant_npt3_calibrated(
         M1 += (F_1 - F_VAPOR_A3110 - F_PERDIDAS_A3110 - F_6) * dt_min / 60.0
         M2 += (F_6 - F_11) * dt_min / 60.0
         L1, L2 = M1 / M1_nom, M2 / M2_nom
-        alpha_purge = pid_AIC3255.step(sens_AIC3255.read(C_ClO4_B3520), dt_min) if use_AIC3255 else 0.22
+        alpha_purge = pid_AIC3522.step(sens_AIC3522.read(C_ClO4_B3520), dt_min) if use_AIC3522 else 0.22
 
         T1_eq = vac_T(P_vac1, 1) + 0.45 * (T_in_1 - 70.0)
         T2_eq = vac_T(P_vac2, 2) + 0.40 * (T1 - 55.0) + (1.1 if t >= 25.0 else 0.0)
@@ -538,7 +544,7 @@ def simulate_plant_npt3_calibrated(
 
 def simular_planta_agua_dilucion_magnesio(
     strategy="AIT3105_and_Mg_trim",   # "ratio_FFIC3102", "high_water_manual", "AIT3105_only", "AIT3105_and_Mg_trim"
-    recycle_mode="no_recycle_actual", # "no_recycle_actual", "fixed_recycle", "smart_AIC3255"
+    recycle_mode="no_recycle_actual", # "no_recycle_actual", "fixed_recycle", "smart_AIC3522"
     include_noise=True,
     theta_AIT_min=10.0,
     duration_min=360.0,
@@ -582,7 +588,7 @@ def simular_planta_agua_dilucion_magnesio(
     s_DIR2 = DelayedSensor(0.6, 0.3, dt_min, xS2, resolution=0.0002, noise_std=0.0003 * ns, seed=14)
     s_AIT3105 = DelayedSensor(theta_AIT_min, 2.0, dt_min, w_ClO4_pre, noise_std=18.0 * ns, seed=15)
     s_AIT_Mg = DelayedSensor(theta_AIT_min, 2.0, dt_min, w_Mg_pre, noise_std=35.0 * ns, seed=16)
-    s_AIC3255 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.025 * ns, seed=17)
+    s_AIC3522 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.025 * ns, seed=17)
     s_FIRC3103 = DelayedSensor(0.10, 0.08, dt_min, F_303_actual, noise_std=0.15 * ns, seed=18)
 
     pid_TIR1 = CommercialPID(0.0055 * VAC["Kc_scale1"], 9.0, 0.4, 55.0, VAC["P1_nom"], *VAC["P1_lim"], beta=0.5)
@@ -592,7 +598,7 @@ def simular_planta_agua_dilucion_magnesio(
     pid_DIR1 = CommercialPID(-650.0, 28.0, 0.0, 0.130, 390.23, 250.0, 520.0)
     pid_DIR2 = CommercialPID(-650.0, 28.0, 0.0, 0.200, 390.23, 250.0, 520.0)
     pid_FIRC3103 = CommercialPID(1.30, 0.40, 0.0, F_303_nom, F_303_nom, F_303_min, F_303_max)
-    pid_AIC3255 = CommercialPID(-0.42, 20.0, 0.0, 3.92, 0.25, 0.12, 1.00)
+    pid_AIC3522 = CommercialPID(-0.42, 20.0, 0.0, 3.92, 0.25, 0.12, 1.00)
 
     R_0 = (F_303_nom / F_PRE_NOM)
     hist = []
@@ -613,8 +619,8 @@ def simular_planta_agua_dilucion_magnesio(
             alpha_purge, F_rec = 0.25, 80.0 * 0.75
         else:
             d_Mg_b3520 = max((C_Mg_B3520 - 9.10) / 9.10, 0.0)
-            pid_AIC3255.sp = 3.92 - 0.45 * d_Mg_b3520
-            alpha_purge = pid_AIC3255.step(s_AIC3255.read(C_ClO4_B3520), dt_min)
+            pid_AIC3522.sp = 3.92 - 0.45 * d_Mg_b3520
+            alpha_purge = pid_AIC3522.step(s_AIC3522.read(C_ClO4_B3520), dt_min)
             F_rec = 80.0 * (1.0 - alpha_purge)
 
         F_pre = F_208 + F_234 + F_rec
@@ -704,7 +710,7 @@ def simular_AIT_AIC_por_flujo_agua(
     dt_min=0.05,
     F_303_nom=F303_NOM, F_303_min=12.0, F_303_max=52.0,
 ):
-    """Evalúa los lazos AIT 3105 y AIC 3255 en función del flujo objetivo de agua F_303 (óptimo 36.8 t/h)."""
+    """Evalúa los lazos AIT 3105 y AIC 3522 en función del flujo objetivo de agua F_303 (óptimo 36.8 t/h)."""
     n_steps = int(duration_min / dt_min)
     rng = np.random.default_rng(105)
     phi = np.exp(-dt_min / 8.0)
@@ -734,11 +740,11 @@ def simular_AIT_AIC_por_flujo_agua(
 
     ns = 1.0 if include_noise else 0.0
     s_AIT3105 = DelayedSensor(10.0, 2.0, dt_min, w_ClO4_pre, noise_std=15.0 * ns, seed=21)
-    s_AIC3255 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.02 * ns, seed=22)
+    s_AIC3522 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.02 * ns, seed=22)
     s_FIRC3103 = DelayedSensor(0.10, 0.08, dt_min, F_303_actual, noise_std=0.12 * ns, seed=23)
 
     pid_FIRC3103 = CommercialPID(1.30, 0.40, 0.0, F_303_nom, F_303_nom, F_303_min, F_303_max)
-    pid_AIC3255 = CommercialPID(-0.35, 22.0, 0.0, 4.02, 0.25, 0.12, 0.80)
+    pid_AIC3522 = CommercialPID(-0.35, 22.0, 0.0, 4.02, 0.25, 0.12, 0.80)
 
     hist = []
     for k in range(n_steps):
@@ -748,8 +754,8 @@ def simular_AIT_AIC_por_flujo_agua(
         w_ClO4_208 = (3892.0 + (delta_ClO4_ssk if t >= 45.0 else 0.0)) * (1.0 + n_Cl[k])
         w_Mg_208 = (8400.0 * (1.32 if t >= 115.0 else 1.0)) * (1.0 + n_Mg[k])
 
-        aic_pv = s_AIC3255.read(C_ClO4_B3520)
-        alpha_purge = pid_AIC3255.step(aic_pv, dt_min) if modo_control == "AIT_and_AIC" else 0.25
+        aic_pv = s_AIC3522.read(C_ClO4_B3520)
+        alpha_purge = pid_AIC3522.step(aic_pv, dt_min) if modo_control == "AIT_and_AIC" else 0.25
 
         F_rec = 80.0 * (1.0 - alpha_purge)
         F_pre = F_208 + F_234 + F_rec
@@ -854,11 +860,11 @@ def simular_robustez_parametros(
 
     s_AIT3105 = DelayedSensor(10.0, 2.0, dt_min, w_ClO4_pre, noise_std=14.0, seed=seed + 1)
     s_AIT_Mg = DelayedSensor(10.0, 2.0, dt_min, w_Mg_pre, noise_std=30.0, seed=seed + 2)
-    s_AIC3255 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.018, seed=seed + 3)
+    s_AIC3522 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520, noise_std=0.018, seed=seed + 3)
     s_FIRC3103 = DelayedSensor(0.10, 0.08, dt_min, F_303_actual, noise_std=0.10, seed=seed + 4)
 
     pid_FIRC3103 = CommercialPID(1.30, 0.40, 0.0, F_303_nom, F_303_nom, F_303_min, F_303_max)
-    pid_AIC3255 = CommercialPID(-0.48, 16.0, 0.0, 4.00, 0.25, 0.12, 0.85)
+    pid_AIC3522 = CommercialPID(-0.48, 16.0, 0.0, 4.00, 0.25, 0.12, 0.85)
     R_0 = (F_303_nom / F_PRE_NOM)
 
     hist = []
@@ -868,11 +874,11 @@ def simular_robustez_parametros(
         w_ClO4_208 = (3892.0 + (620.0 if t >= 45.0 else 0.0)) * (1.0 + n_Cl[k])
         w_Mg_208 = (8400.0 * (1.32 if t >= 115.0 else 1.0)) * (1.0 + n_Mg[k])
 
-        aic_pv = s_AIC3255.read(C_ClO4_B3520)
+        aic_pv = s_AIC3522.read(C_ClO4_B3520)
         if control_active:
             d_Mg_b3520 = max((C_Mg_B3520 - 9.10) / 9.10, 0.0)
-            pid_AIC3255.sp = 4.00 - 0.32 * d_Mg_b3520
-            alpha_purge = pid_AIC3255.step(aic_pv, dt_min)
+            pid_AIC3522.sp = 4.00 - 0.32 * d_Mg_b3520
+            alpha_purge = pid_AIC3522.step(aic_pv, dt_min)
         else:
             alpha_purge = 0.25
 
@@ -925,8 +931,8 @@ def simular_robustez_parametros(
         ppm_final_6000 = (moisture_17 * w_ClO4_lav_3000) * (1.0 - rem_eff_6000) * (w_ClO4_ML_ref / 738.0) ** 0.35 + 0.85 * coprecip_ppm
 
         hist.append({
-            "t_min": t, "F_303": F_303_actual, "error_AIC": pid_AIC3255.last_error,
-            "I_term_AIC": pid_AIC3255.I, "P_term_AIC": pid_AIC3255.last_P,
+            "t_min": t, "F_303": F_303_actual, "error_AIC": pid_AIC3522.last_error,
+            "I_term_AIC": pid_AIC3522.I, "P_term_AIC": pid_AIC3522.last_P,
             "alpha_purge_pct": 100.0 * alpha_purge, "ppm_ClO4_final_6000": ppm_final_6000,
         })
     return pd.DataFrame(hist)
@@ -957,7 +963,7 @@ def simular_recirculacion_y_magnesio(
     s_TIR1 = DelayedSensor(1.0, 0.5, dt_min, T1)
     s_TIR2 = DelayedSensor(1.0, 0.5, dt_min, T2)
     s_AIT3105 = DelayedSensor(10.0, 2.0, dt_min, w_ClO4_pre)
-    s_AIC3255 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520)
+    s_AIC3522 = DelayedSensor(10.0, 2.0, dt_min, C_ClO4_B3520)
     s_FIRC3103 = DelayedSensor(0.10, 0.08, dt_min, F_303_actual)
 
     pid_TIR1 = CommercialPID(0.0055 * VAC["Kc_scale1"], 9.0, 0.4, 55.0, VAC["P1_nom"], *VAC["P1_lim"])
@@ -965,7 +971,7 @@ def simular_recirculacion_y_magnesio(
     pid_PIR1 = CommercialPID(1.5, 0.3, 0.0, VAC["P1_nom"], VAC["P1_nom"], *VAC["P1_lim"])
     pid_PIR2 = CommercialPID(1.5, 0.3, 0.0, VAC["P2_nom"], VAC["P2_nom"], *VAC["P2_lim"])
     pid_FIRC3103 = CommercialPID(1.25, 0.45, 0.0, F_303_nom, F_303_nom, F_303_min, F_303_max)
-    pid_AIC3255 = CommercialPID(-0.38, 22.0, 0.0, 3.95, 0.25, 0.12, 1.00)
+    pid_AIC3522 = CommercialPID(-0.38, 22.0, 0.0, 3.95, 0.25, 0.12, 1.00)
 
     hist = []
     for k in range(n_steps):
@@ -982,8 +988,8 @@ def simular_recirculacion_y_magnesio(
             F_rec_B3520 = 85.0 * (1.0 - alpha_purge)
         else:
             delta_Mg_sp = max((C_Mg_B3520 - 9.20) / 9.20, 0.0)
-            pid_AIC3255.sp = 3.95 - 0.55 * delta_Mg_sp
-            alpha_purge = pid_AIC3255.step(s_AIC3255.read(C_ClO4_B3520), dt_min)
+            pid_AIC3522.sp = 3.95 - 0.55 * delta_Mg_sp
+            alpha_purge = pid_AIC3522.step(s_AIC3522.read(C_ClO4_B3520), dt_min)
             F_rec_B3520 = 85.0 * (1.0 - alpha_purge)
 
         F_pre = F_208 + F_234 + F_rec_B3520
@@ -1104,7 +1110,13 @@ def identificar_Kcu(lo=0.012, hi=0.013, n_iter=9):
         d = _sim_P(Kc)
         return amplitud_oscilacion(d, 300, 400) / max(amplitud_oscilacion(d, 110, 170), 1e-9) >= 1.0
     if crece(lo) or not crece(hi):
-        raise ValueError("el intervalo [lo, hi] no encierra la transicion estable -> inestable")
+        # el intervalo dado no encierra la transicion: barrido geometrico para encontrarla antes de fallar
+        grid = np.geomspace(1e-4, 1.0, 40)
+        est = [crece(k) for k in grid]
+        idx = next((n for n, e in enumerate(est) if e), None)
+        if idx is None or idx == 0:
+            raise ValueError("no se encontro la transicion estable -> inestable en Kc in [1e-4, 1]")
+        lo, hi = float(grid[idx - 1]), float(grid[idx])
     for _ in range(n_iter):
         mid = 0.5 * (lo + hi)
         lo, hi = (lo, mid) if crece(mid) else (mid, hi)

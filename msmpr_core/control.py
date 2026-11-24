@@ -463,8 +463,34 @@ def sigma_ventana(df, col, t0_h=12.0):
     return float(np.std(y - np.polyval(np.polyfit(t, y, 1), t)))
 
 
-def routh_hopf_analysis(Kp, tau_p, theta, tau_I):
-    """Criterio de Routh-Hurwitz con Padé 1er orden y detección de Bifurcación de Hopf."""
+def ultimate_gain_exact(Kp, tau_p, theta, tau_I):
+    """Ganancia última Ku [1/|K| unidades] y periodo Pu del lazo PI + FOPDT con el RETARDO EXACTO e^{-theta s}.
+
+    Se busca el cruce de fase -180 grados de L(jw) = Kc*K*(1+1/(j w tau_I))*e^{-j w theta}/(j w tau_p + 1) con Kc = 1
+    y Ku = 1/|L| en ese punto (criterio de Nyquist). Sirve para contrastar el resultado de Padé de 1er orden de
+    `routh_hopf_analysis`, que NO es conservador (sobreestima Ku ~25 % para theta/tau_p ~ 0,2).
+    Devuelve (Ku, Pu) en las mismas unidades de tiempo de tau_p, theta y tau_I.
+    """
+    K_abs = abs(float(Kp))
+    th = max(float(theta), 1e-6)
+    w = np.logspace(-4, 3, 400000) / max(min(tau_p, tau_I, th), 1e-9)
+    L = K_abs * (1 + 1 / (1j * w * tau_I)) * np.exp(-1j * w * th) / (1j * w * tau_p + 1)
+    ph = np.unwrap(np.angle(L))
+    cross = np.where(np.diff(np.sign(ph + np.pi)))[0]
+    if len(cross) == 0:
+        return float("inf"), float("nan")
+    i = cross[0]
+    return float(1.0 / abs(L[i])), float(2 * np.pi / w[i])
+
+
+def routh_hopf_analysis(Kp, tau_p, theta, tau_I, with_exact=False):
+    """Criterio de Routh-Hurwitz con Padé 1er orden y detección de Bifurcación de Hopf.
+
+    ADVERTENCIAS: (i) Padé 1/1 sobreestima Ku (no conservador); con with_exact=True se agregan 'Ku_exact'/'Pu_exact'
+    (Nyquist con retardo real). (ii) Con theta ~ 0 el lazo PI+FOPDT es incondicionalmente estable: un theta efectivo
+    se debe ESTIMAR de la misma identificación (válvula + vacío + muestreo), no fijarse a mano. (iii) 'Kc_overshoot' es
+    una heurística (1/|K| como piso), no un límite derivado.
+    """
     theta_eff = max(float(theta), 1e-3)
     a0 = 0.5 * tau_p * tau_I * theta_eff
     K_abs = abs(Kp)
@@ -482,7 +508,12 @@ def routh_hopf_analysis(Kp, tau_p, theta, tau_I):
     tau_u = 2.0 * np.pi / omega_u
     Kc_overshoot = (1.0 / K_abs) * max((2.0 * tau_p / tau_I) - 1.0, 0.05)
     sgn = -1.0 if Kp < 0 else 1.0
+    extra = {}
+    if with_exact:
+        Ku_e, Pu_e = ultimate_gain_exact(Kp, tau_p, theta_eff, tau_I)
+        extra = {"Ku_exact": sgn * Ku_e, "Pu_exact": Pu_e, "padeover_pct": 100.0 * (Kc_hopf / Ku_e - 1.0)}
     return {
+        **extra,
         "Kc_overshoot": sgn * Kc_overshoot,
         "Kc_hopf": sgn * Kc_hopf,
         "omega_u": float(omega_u),
@@ -523,7 +554,11 @@ class CommercialPID:
             D = self.d_filt
         tentative_I = self.integral + (self.Kc / max(self.tau_I, 1e-6)) * error * dt if self.tau_I > 0 else 0.0
         u_unsat = self.u_bias + P + tentative_I + D
-        if self.u_min <= u_unsat <= self.u_max:
+        # Integración condicional: se congela SOLO si la integral empujaría más hacia la saturación activa; si el error
+        # ya la devuelve hacia el rango, se permite integrar (antes se congelaba siempre fuera de límites y podía
+        # quedar pegado en saturación).
+        pushing_out = (u_unsat > self.u_max and tentative_I > self.integral) or (u_unsat < self.u_min and tentative_I < self.integral)
+        if not pushing_out:
             self.integral = tentative_I
             self.I = tentative_I
         self.prev_pv = pv
@@ -533,6 +568,18 @@ class CommercialPID:
 # ------------------------------------------------------------------------------
 # Control Multivariable y Prealimentación Avanzada (Etapas 4 y 5 del Roadmap)
 # ------------------------------------------------------------------------------
+def mv_authority(G, u0, y0, tol=1e-2):
+    """Sensibilidad relativa |dy/y| por |du/u| de cada par (CV_i, MV_j) y bandera de MV 'sin autoridad'.
+
+    Una columna cuya sensibilidad máxima es < tol (p. ej. alpha en `rga_from_plant` con volumen fijo: el caudal de
+    purga queda fijado por el balance de volumen) hace que G sea casi singular; RGA y NI resultantes NO son
+    interpretables. Devuelve (S, sin_autoridad) con S de forma (n_cv, n_mv) y sin_autoridad vector booleano por MV.
+    """
+    G = np.asarray(G, float)
+    S = np.abs(G) * np.abs(np.asarray(u0, float))[None, :] / np.maximum(np.abs(np.asarray(y0, float)), 1e-12)[:, None]
+    return S, S.max(axis=0) < tol
+
+
 def compute_rga(G):
     """
     Calcula la Matriz de Ganancias Relativas (RGA, Bristol 1966):

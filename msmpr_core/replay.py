@@ -1,12 +1,49 @@
 """
 Módulo de reproducción contrafactual (disturbance replay) sobre campañas reales SQM (NPT-3).
 Sincroniza sensores físicos (10 min) y química (2 h) y evalúa la estrategia sostenible
-(F_303 = 0.50 t/h nominal + AIT 3105 + purga continua AIC 3255 + trim térmico T2).
+(F_303 = 0.50 t/h nominal + AIT 3105 + purga continua AIC 3522 + trim térmico T2).
 """
 from pathlib import Path
 import unicodedata
+import warnings
 import numpy as np
 import pandas as pd
+
+# Coeficientes del beneficio neto de KNO3 del replay. Son PLACEHOLDERS lineales (sin fuente ni calibración).
+# Ojo con la magnitud: el ML de refinación (corriente 234) trae ~0,17 K y ~0,29 NO3 (fracción másica); como KNO3-equivalente
+# son ~0,45 t/t, es decir del orden de 0,6 t KNO3-eq por m3 (con rho ~1,4 t/m3, supuesto). Si la purga se pierde, el costo es
+# ~10 veces K_PURGA; si se recupera en la planta atmosférica, hay que decirlo y documentar la tasa de recuperación.
+K_AGUA_T_H_POR_T_H = 0.38      # t/h de KNO3 recuperadas por t/h de agua de dilución ahorrada [placeholder]
+K_PURGA_T_H_POR_M3_H = 0.055   # t/h de KNO3 perdidas por m3/h de purga adicional [placeholder]
+K_T2_T_H_POR_C = 0.85          # t/h por °C de T2 [placeholder]
+
+
+def kno3_eq_en_ml_t_m3(w_K=0.1727, w_NO3=0.2875, rho_t_m3=1.4):
+    """t de KNO3-equivalente por m3 de ML (corriente 234 del balance v6; rho supuesto) para contrastar K_PURGA."""
+    kno3_por_t = min(w_K * 101.10 / 39.098, w_NO3 * 101.10 / 62.004)   # reactivo limitante
+    return kno3_por_t * rho_t_m3
+
+
+def replay_fit_metrics(real, sim, umbral=40.0, piso=20.0):
+    """Métricas de ajuste del baseline simulado contra el ppm REAL de refinado (RMSE, MAE, r y matriz de excedencias).
+
+    `real` puede traer NaN (análisis cada 2 h) y valores censurados en el piso del método (~20 ppm); se reportan también
+    las métricas solo con puntos sobre el piso. Sin esto, 'el baseline reproduce la planta' no es verificable.
+    """
+    r = pd.Series(real, dtype=float); m = pd.Series(sim, dtype=float).reindex(r.index) if hasattr(r, 'index') else pd.Series(sim)
+    ok = r.notna() & m.notna()
+    r, m = r[ok], m[ok]
+    def _met(rr, mm):
+        if len(rr) < 3:
+            return {'n': int(len(rr)), 'rmse': np.nan, 'mae': np.nan, 'r': np.nan}
+        return {'n': int(len(rr)), 'rmse': float(np.sqrt(np.mean((rr - mm) ** 2))), 'mae': float(np.mean(np.abs(rr - mm))),
+                'r': float(np.corrcoef(rr, mm)[0, 1]) if rr.std() > 0 and mm.std() > 0 else np.nan}
+    sobre = r > piso * 1.05
+    tp = int(((r > umbral) & (m > umbral)).sum()); fn = int(((r > umbral) & (m <= umbral)).sum())
+    fp = int(((r <= umbral) & (m > umbral)).sum()); tn = int(((r <= umbral) & (m <= umbral)).sum())
+    return {'todos': _met(r, m), 'sobre_piso': _met(r[sobre], m[sobre]),
+            'excedencias': {'TP': tp, 'FN': fn, 'FP': fp, 'TN': tn,
+                            'sensibilidad': tp / max(tp + fn, 1), 'especificidad': tn / max(tn + fp, 1)}}
 
 
 def find_sqm_excel(keyword, search_bases=(Path("."), Path(".."))):
@@ -66,6 +103,7 @@ def cargar_ventana_real_sqm(
         df["T_A3210_real"] = pd.to_numeric(sens["Temperatura CRY A3210"], errors="coerce").interpolate().bfill().ffill()
         df["Nivel_A3110"]  = pd.to_numeric(sens["Nivel A3110"], errors="coerce").interpolate().bfill().ffill()
         df["LV3101_real"]  = pd.to_numeric(sens["Valvula LV 3101"], errors="coerce").interpolate().bfill().ffill()
+        sensores_reales = True
     else:
         d_ssk_raw = xl.parse("SSK")
         df = pd.DataFrame({
@@ -76,9 +114,12 @@ def cargar_ventana_real_sqm(
         df = df[~df.index.duplicated(keep="last")]
         df["Q_SSKd_m3_h"]  = df["Q_SSKd_m3_h"].clip(lower=120.0).interpolate().bfill().ffill()
         df["Q_dil_real"]   = df["Q_dil_real"].clip(lower=0.0, upper=35.0).interpolate().bfill().ffill()
+        warnings.warn("cargar_ventana_real_sqm: SIN 'Data sensores'; Q_purga_real=20.43, T_A3110=57.48 y T_A3210=43.04 son CONSTANTES, "
+                      "no mediciones. Los paneles de purga y temperatura 'reales' no deben presentarse como datos de planta.", stacklevel=2)
         df["Q_purga_real"] = 20.43
         df["T_A3110_real"] = 57.48
         df["T_A3210_real"] = 43.04
+        sensores_reales = False
 
     ssk_q   = leer_quim("SSK", {"ClO4 IC": "ClO4_SSK", "Mg": "Mg_SSK", "K": "K_SSK"})
     mlk_q   = leer_quim("Purga-Recirculación", {"ClO4 IC": "ClO4_MLK_real", "Mg": "Mg_MLK_real"})
@@ -90,6 +131,7 @@ def cargar_ventana_real_sqm(
         df[col] = df[col].interpolate("time").ffill().bfill()
 
     df["t_h"] = (df.index - df.index[0]).total_seconds() / 3600.0
+    df.attrs["sensores_reales"] = sensores_reales
     return df
 
 
@@ -209,7 +251,7 @@ def simular_replay_npt3(df_in, mode="baseline_sqm", theta_ait_h=0.25, lab_sampli
         )
         ppm_refi = max(20.0, ppm_refi_raw)
 
-        dKNO3_net = 0.38 * (Q_dil_r - Q_dil) - 0.055 * (Q_purga - Q_purg_r) - 0.85 * (T2 - T2_real)
+        dKNO3_net = K_AGUA_T_H_POR_T_H * (Q_dil_r - Q_dil) - K_PURGA_T_H_POR_M3_H * (Q_purga - Q_purg_r) - K_T2_T_H_POR_C * (T2 - T2_real)
 
         rows.append({
             "t_h": t_h,
