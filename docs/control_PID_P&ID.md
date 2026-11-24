@@ -37,7 +37,7 @@ de cristalización por lotes, MIT) para el uso de sensores blandos (IR/FBRM) com
 
 ## 3. Transición Ambiental a Dilución Sostenible ($0{,}5\text{ t/h}$) y Validación sobre Campaña Real SQM
 
-El análisis de los registros operacionales reales de SQM (`10–15 nov 2026`, sensores cada $10\text{ min}$ y química cada $2\text{ h}$) demostró que la planta opera actualmente con un promedio de **$19{,}96\text{ t/h}$** de agua de dilución y una purga **on/off** ($0\text{–}36{,}5\text{ m}^3/\text{h}$, media $20{,}4\text{ m}^3/\text{h}$), presentando aun así **$26{,}8\%$ de muestras fuera de especificación ($> 40\text{ ppm}$)** en Área 6000 (pico de $99\text{ ppm}$), gatilladas principalmente por alzas de **$\text{Mg}^{2+}$ en licor madre** ($r = +0{,}523$, efecto *salting-out* y mayor viscosidad/retención en centrífugas `CF 3550`)[cite: 8].
+El análisis de los registros operacionales reales de SQM (`10–15 nov 2026`, sensores cada $10\text{ min}$ y química cada $2\text{ h}$) demostró que la planta opera actualmente con un promedio de **$19{,}96\text{ t/h}$** de agua de dilución y una purga **on/off** ($0\text{–}36{,}5\text{ m}^3/\text{h}$, media $20{,}4\text{ m}^3/\text{h}$), presentando aun así **$26{,}8\%$ de muestras fuera de especificación ($> 40\text{ ppm}$)** en Área 6000 (pico de $99\text{ ppm}$), gatilladas principalmente por alzas de **$\text{Mg}^{2+}$ en licor madre** ($r = +0{,}523$, efecto *salting-out* y mayor viscosidad/retención en centrífugas `CF 3550`).
 
 ### 3.1 Estrategia Integrada Propuesta (Modificaciones P&ID en Rojo)
 * **Prealimentación sostenible (`AIT 3105 → FFIC 3102 → FIRC 3103`):** Opera con consigna base de **$0{,}50\text{ t/h}$** (rango acotado $[0{,}20,\; 2{,}50]\text{ t/h}$), compensación *Lead-Lag* y selector *Override* de sobresaturación ($\sigma_{\min} = 0{,}02$).
@@ -56,12 +56,12 @@ El análisis de los registros operacionales reales de SQM (`10–15 nov 2026`, s
 | **Robustez 30 días — Propuesta Integrada (Lab c/2 h)** | **$0{,}83$** | **$33{,}4$** | **$22{,}6$** | **$27{,}4$** | **$0{,}0\%$** | **$+6{,}64$** |
 | **Estrés Extremo $\text{Mg}^{2+}$ ($43\text{–}46\text{ g/L}$, Lab c/2 h)** | $1{,}85$ | $61{,}3$ | $21{,}6$ | $59{,}5$ | $0{,}2\%$ | $+4{,}53$ |
 
-> **Validación de robustez y economía:** Debido a la inercia del inventario `A3110 + A3210 + B3520` ($\tau \approx 2{,}2\text{ h}$), realimentar `AIC 3522` con el **muestreo de cromatografía iónica de laboratorio cada 2 horas** mantiene $0{,}0\%$ de violaciones tanto en la campaña de 4 días como en el mes completo (ahorrando **$1\,958\text{ m}^3$ de agua en 4 días**, $-95{,}1\%$, y evitando la inversión de un cromatógrafo industrial en línea). El escenario de $\text{Mg}^{2+} = 43\text{–}46\text{ g/L}$ establece el límite operativo superior de la válvula de purga ($61{,}3\text{ m}^3/\text{h}$).
+> **Alcance del *replay* y diagnóstico empírico (`docs/diagnostico_replay.md`):** En el simulador contrafactual (parámetros *placeholder*, `replay.K_*`), realimentar `AIC 3522` con cromatografía iónica de laboratorio c/2 h mantiene $0{,}0\%$ de excedencias simuladas y un ahorro de $-95{,}1\%$ de agua ($1\,958\text{ m}^3$ en 4 d), fijando un techo de diseño de $\ge 65\text{ m}^3/\text{h}$ para `FV 3522`. No obstante, el contraste contra **$n = 6\,966$ muestras reales** demuestra que el "$0{,}0\%$" es una propiedad del modelo (el *baseline* 4 d obtiene $r = 0{,}27$, $\text{RMSE} = 22{,}0\text{ ppm}$ y sensibilidad $0{,}20$) y que el predictor empírico principal de refinado $> 40\text{ ppm}$ es el $\text{KClO}_4$ del **ML de Refinación en Área 6000** (Spearman $0{,}52$, AUC $= 0{,}74$, límite interno $\approx 3{,}1\text{ g/L}$), no el eslabón directo `MLK → crudo → refinado` (Spearman $0{,}025$, AUC $= 0{,}47$). En consecuencia, el control propuesto en Área 3000 actúa como capa regulatoria/preventiva y debe complementarse con monitoreo y control de $\text{KClO}_4$ en el Área 6000.
 
 ### 3.3 Validación Automatizada del Repositorio
 * **Restricción dura de $\text{KClO}_4$ (`dilution_kclo4_hard_constraint`):** Acoplada en `msmpr_core/control.py` + `dpbe.py` ($\ln\Gamma_{\text{KClO}_4,0} = 1{,}571$, $T_{\text{sat}} = 41{,}29\text{ }^\circ\text{C}$).
-* **Suite `pytest`:** `96 passed, 2 skipped` (`tests/test_core.py`, `tests/test_datos_y_bases.py`, `tests/test_control_integrado.py`, `tests/test_revision_vacio_trim_balance.py` y `tests/test_sostenible_y_avanzado.py`).
-* **Figura de síntesis:** `docs/fig/10_replay_campana_real_SQM.png`.
+* **Suite `pytest`:** `112 passed, 2 skipped` (`tests/test_core.py`, `tests/test_datos_y_bases.py`, `tests/test_control_integrado.py`, `tests/test_revision_vacio_trim_balance.py`, `tests/test_sostenible_y_avanzado.py`, `tests/test_revision_patches.py` y `tests/test_replay_calib.py`).
+* **Figuras de síntesis:** `docs/fig/10_replay_campana_real_SQM.png` y `docs/fig/11_diagnostico_replay.png` (ver `docs/diagnostico_replay.md`).
 
 ---
 

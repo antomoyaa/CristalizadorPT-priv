@@ -21,3 +21,5 @@ tiende a 0 (a_c → 0) y los demás coeficientes chocan con sus cotas. El ML de 
 **Conclusión.** En estos datos la variable asociada al ppm del refinado es el KClO4 del ML de refinación (Área 6000), coherente con el análisis
 interno de SQM (límite ≈ 3,1 g/L). La cadena MLK → coprecipitación → crudo → refinado del replay no tiene respaldo empírico, por lo que su
 contrafactual ("0 % >40 ppm" con menos dilución y más purga del MLK) no está validado.
+
+> **Nota metodológica (`calibrar_replay`):** La recalibración de coeficientes se ejecuta sobre la ventana `d30` (`usar_sensores_4d=False`, donde $T_2$ y $Q_{\text{purga}}$ son constantes nominales por ausencia de sensores cada 10 min en los 30 días); esto no afecta el diagnóstico de Spearman/AUC sobre las $n = 6\,966$ muestras históricas reales, que utiliza directamente `Temp. A3000` medida.
