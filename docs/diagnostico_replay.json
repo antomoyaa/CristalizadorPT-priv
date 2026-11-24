@@ -1,0 +1,197 @@
+{
+ "diagnostico": {
+  "n": 6966,
+  "periodo": [
+   "2025-01-01 01:00:00",
+   "2026-11-15 23:00:00"
+  ],
+  "spearman_refi": {
+   "mlrefi_KClO4": 0.521,
+   "crudo_ppm": 0.363,
+   "crudo_Mg": -0.216,
+   "mlk_Mg": 0.167,
+   "mlk_KClO4": 0.025,
+   "mlk_ClO4": 0.025,
+   "exceso": -0.018
+  },
+  "spearman_crudo": {
+   "mlrefi_KClO4": 0.439,
+   "mlk_Mg": 0.238,
+   "mlk_KClO4": 0.037,
+   "mlk_ClO4": 0.037,
+   "exceso": 0.055
+  },
+  "rezago_crudo_vs_mlkClO4_h": {
+   "0": 0.037,
+   "2": 0.049,
+   "4": 0.057,
+   "6": 0.057,
+   "12": 0.04,
+   "24": 0.043
+  },
+  "exceso": {
+   "frac_con_exceso": 0.088,
+   "crudo_mediana": [
+    229.0,
+    199.0
+   ],
+   "pct_refi_gt40": [
+    16.1,
+    17.7
+   ]
+  }
+ },
+ "predictores": [
+  {
+   "predictor": "ML refinaci\u00f3n KClO4 (g/L)",
+   "AUC_test": 0.739548261314131,
+   "RMSE_test": NaN,
+   "r_test": NaN,
+   "sens": NaN,
+   "esp": NaN
+  },
+  {
+   "predictor": "Cristal sin refinar (ppm)",
+   "AUC_test": 0.636895537813188,
+   "RMSE_test": NaN,
+   "r_test": NaN,
+   "sens": NaN,
+   "esp": NaN
+  },
+  {
+   "predictor": "Mg del MLK (g/L)",
+   "AUC_test": 0.5780954815612198,
+   "RMSE_test": NaN,
+   "r_test": NaN,
+   "sens": NaN,
+   "esp": NaN
+  },
+  {
+   "predictor": "KClO4 del MLK (g/L)",
+   "AUC_test": 0.47064405665541414,
+   "RMSE_test": NaN,
+   "r_test": NaN,
+   "sens": NaN,
+   "esp": NaN
+  },
+  {
+   "predictor": "Exceso MLK sobre C_sat (hinge del replay)",
+   "AUC_test": 0.49586306237764316,
+   "RMSE_test": NaN,
+   "r_test": NaN,
+   "sens": NaN,
+   "esp": NaN
+  },
+  {
+   "predictor": "Regresi\u00f3n ML refi + crudo (ppm)",
+   "AUC_test": 0.7156411499874861,
+   "RMSE_test": 21.633278179018514,
+   "r_test": 0.30511501525809187,
+   "sens": 0.32263242375601925,
+   "esp": 0.8984515664386028
+  }
+ ],
+ "calibracion_replay": {
+  "coef": {
+   "a0": 27.994181874250607,
+   "a_b": 0.016581042787876466,
+   "a_c": 4.066940050667721e-36,
+   "k_cop": 19999.99999999994,
+   "c0_refi": 0.10000000000000002,
+   "k_refi": 0.01999971158502862
+  },
+  "rmse_censurado_train": 26.529563885712154,
+  "train": {
+   "calibrado": {
+    "todos": {
+     "n": 251,
+     "rmse": 26.529563885712154,
+     "mae": 15.79104080228891,
+     "r": 0.09282563845475726
+    },
+    "sobre_piso": {
+     "n": 108,
+     "rmse": 37.97825971403136,
+     "mae": 21.07677137356521,
+     "r": 0.2247695889934329
+    },
+    "excedencias": {
+     "TP": 0,
+     "FN": 38,
+     "FP": 7,
+     "TN": 206,
+     "sensibilidad": 0.0,
+     "especificidad": 0.9671361502347418
+    }
+   },
+   "original": {
+    "todos": {
+     "n": 251,
+     "rmse": 33.68184165616437,
+     "mae": 16.856397244645297,
+     "r": 0.007666354697067021
+    },
+    "sobre_piso": {
+     "n": 108,
+     "rmse": 42.22208296625299,
+     "mae": 25.62453159095618,
+     "r": 0.08901602999506929
+    },
+    "excedencias": {
+     "TP": 8,
+     "FN": 30,
+     "FP": 17,
+     "TN": 196,
+     "sensibilidad": 0.21052631578947367,
+     "especificidad": 0.92018779342723
+    }
+   }
+  },
+  "test": {
+   "calibrado": {
+    "todos": {
+     "n": 142,
+     "rmse": 22.81728053110421,
+     "mae": 15.492404602078304,
+     "r": 0.10966237727949488
+    },
+    "sobre_piso": {
+     "n": 44,
+     "rmse": 37.307678990473995,
+     "mae": 24.86986974010259,
+     "r": -0.012676065294734043
+    },
+    "excedencias": {
+     "TP": 0,
+     "FN": 25,
+     "FP": 0,
+     "TN": 117,
+     "sensibilidad": 0.0,
+     "especificidad": 1.0
+    }
+   },
+   "original": {
+    "todos": {
+     "n": 142,
+     "rmse": 23.67595523192459,
+     "mae": 11.904492722438645,
+     "r": 0.16332476110820018
+    },
+    "sobre_piso": {
+     "n": 44,
+     "rmse": 41.07153463149996,
+     "mae": 28.664232317251926,
+     "r": 0.0945833172000615
+    },
+    "excedencias": {
+     "TP": 3,
+     "FN": 22,
+     "FP": 3,
+     "TN": 114,
+     "sensibilidad": 0.12,
+     "especificidad": 0.9743589743589743
+    }
+   }
+  }
+ }
+}

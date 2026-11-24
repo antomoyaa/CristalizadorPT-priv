@@ -13,6 +13,9 @@
 > (función de umbral sobre la coprecipitación), no una validación: ver `replay.replay_fit_metrics` para cuantificar el ajuste del baseline.
 > El RGA/Niederlinski del A3110 aislado no es interpretable para `alpha` (con V fijo, el caudal de purga lo fija el balance de volumen); ver `control.mv_authority`.
 
+
+> **Diagnóstico del replay (nov-2026):** con la base química real (n = 6 966) el eslabón MLK → cristal crudo → refinado no tiene respaldo empírico y el KClO₄ del ML de refinación es la variable asociada al ppm final; ver `docs/diagnostico_replay.md` y `scripts/diagnostico_replay.py`.
+
 ## 1. Resumen Ejecutivo
 
 Este repositorio contiene el modelo fenomenológico (`msmpr_core`), los controladores regulatorios/supervisores y los cuadernos de validación dinámica para los cristalizadores evaporativos al vacío **A3110** y **A3210** de la planta NPT-3 de SQM, con el objetivo de mantener el producto refinado final **$< 40\text{ ppm}$ de $\text{ClO}_4^-$** bajo una estrategia hídricamente sostenible:

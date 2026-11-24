@@ -155,11 +155,22 @@ class PIControllerDiscrete:
         return u_sat
 
 
-def simular_replay_npt3(df_in, mode="baseline_sqm", theta_ait_h=0.25, lab_sampling_h=0.0, mg_offset=0.0):
+# Coeficientes del mapa "licores -> ppm de refinado" del replay. Los valores por defecto son los ORIGINALES (placeholders);
+# `replay_calib.calibrar_replay` ajusta algunos contra el ppm real. Se pasan con `coef=` a simular_replay_npt3.
+COEF_REPLAY = {
+    "c0_refi": 0.90, "k_refi": 0.0028, "tau_refi_h": 3.50,     # dinámica del ML de refinación (g/L ClO4)
+    "k_cop": 2600.0, "p_cop": 1.15, "f_brine": 1.45,            # ClO4 del cristal crudo (coprecipitación + licor)
+    "a0": 11.0, "a_b": 0.095, "a_c": 0.058, "e_b": 0.35, "e_c": 0.45,   # ppm refinado
+    "piso": 20.0,                                               # piso del método analítico (ppm)
+}
+
+
+def simular_replay_npt3(df_in, mode="baseline_sqm", theta_ait_h=0.25, lab_sampling_h=0.0, mg_offset=0.0, coef=None):
     """
     Simula el tren acoplado Área 2000 -> Área 3000 -> Área 6000 sobre una ventana de planta.
     Modos: 'baseline_sqm', 'dil_05_only', 'proposed_integrated'.
     """
+    cf = {**COEF_REPLAY, **(coef or {})}
     dt_h = 10.0 / 60.0
     n = len(df_in)
 
@@ -172,7 +183,7 @@ def simular_replay_npt3(df_in, mode="baseline_sqm", theta_ait_h=0.25, lab_sampli
     a_valve = 1.0 - np.exp(-dt_h / 0.05)
     a_T2    = 1.0 - np.exp(-dt_h / 0.50)
     a_B3520 = 1.0 - np.exp(-dt_h / 2.20)
-    a_refi  = 1.0 - np.exp(-dt_h / 3.50)
+    a_refi  = 1.0 - np.exp(-dt_h / cf["tau_refi_h"])
 
     d_steps = max(int(round(theta_ait_h / dt_h)), 1)
     ait_buf = [float(df_in["ClO4_SSK"].iloc[0])] * d_steps
@@ -239,17 +250,17 @@ def simular_replay_npt3(df_in, mode="baseline_sqm", theta_ait_h=0.25, lab_sampli
         w_moist   = 0.0286 * (eta_ratio ** 0.30)
 
         excess = max(C_MLK - C_sat, 0.0)
-        coprecip_crudo_ppm = 2600.0 * (excess ** 1.15)
-        brine_crudo_ppm    = (w_moist * C_MLK * 1000.0 / 1.40) * 1.45
+        coprecip_crudo_ppm = cf["k_cop"] * (excess ** cf["p_cop"])
+        brine_crudo_ppm    = (w_moist * C_MLK * 1000.0 / 1.40) * cf["f_brine"]
         ClO4_crudo_ppm     = brine_crudo_ppm + coprecip_crudo_ppm
 
-        C_MLRefi += a_refi * ((0.90 + 0.0028 * ClO4_crudo_ppm) - C_MLRefi)
+        C_MLRefi += a_refi * ((cf["c0_refi"] + cf["k_refi"] * ClO4_crudo_ppm) - C_MLRefi)
         ppm_refi_raw = (
-            11.0
-            + 0.095 * brine_crudo_ppm * (C_MLRefi / 1.50) ** 0.35
-            + 0.058 * coprecip_crudo_ppm * (C_MLRefi / 1.50) ** 0.45
+            cf["a0"]
+            + cf["a_b"] * brine_crudo_ppm * (C_MLRefi / 1.50) ** cf["e_b"]
+            + cf["a_c"] * coprecip_crudo_ppm * (C_MLRefi / 1.50) ** cf["e_c"]
         )
-        ppm_refi = max(20.0, ppm_refi_raw)
+        ppm_refi = max(cf["piso"], ppm_refi_raw)
 
         dKNO3_net = K_AGUA_T_H_POR_T_H * (Q_dil_r - Q_dil) - K_PURGA_T_H_POR_M3_H * (Q_purga - Q_purg_r) - K_T2_T_H_POR_C * (T2 - T2_real)
 
@@ -262,6 +273,8 @@ def simular_replay_npt3(df_in, mode="baseline_sqm", theta_ait_h=0.25, lab_sampli
             "C_sat_g_L": C_sat,
             "Mg_MLK_g_L": Mg_MLK,
             "ClO4_refi_ppm": ppm_refi,
+            "C_MLRefi_g_L": C_MLRefi,
+            "ppm_refi_sin_piso": ppm_refi_raw,
             "dKNO3_net_t_h": dKNO3_net,
         })
 
