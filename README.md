@@ -1,7 +1,7 @@
 # Control PID y Estrategia *Plantwide* — Cristalizadores de $\text{KNO}_3$ (Planta NPT-3, SQM)
 
 > **Rama:** `PID` | **Alcance:** Tren Integrado **Área 2000 (`B2510`) → Área 3000 (`A3110 / A3210 / B3520`) → Área 6000 (Refinación)**  
-> **Estado de validación:** `112 passed, 2 skipped` (`pytest tests/`)
+> **Estado de validación:** `115 passed, 2 skipped` (`pytest tests/`)
 
 ---
 
@@ -70,7 +70,7 @@ Este repositorio contiene el modelo fenomenológico (`msmpr_core`), los controla
   3. `06_Control_por_etapas_dilucion.ipynb`: Cierre escalonado `FIRC 3103 → FFIC 3102 → AIT 3105 + AIC 3522`, reciclo/magnesio y *replay* de la campaña real SQM.
 * **`docs/`**: Documentación técnica (`control_PID_P&ID.md`, `ROADMAP_control_por_etapas.md`, `diagnostico_replay.md`) y figuras exportadas (`docs/fig/`).
 * **`scripts/`**: Diagnóstico empírico del *replay* sobre la base histórica real (`scripts/diagnostico_replay.py`).
-* **`tests/`**: Suite de validación automatizada (`112 passed, 2 skipped`).
+* **`tests/`**: Suite de validación automatizada (`115 passed, 2 skipped`).
 
 ---
 
@@ -80,7 +80,7 @@ Este repositorio contiene el modelo fenomenológico (`msmpr_core`), los controla
 # 1. Instalar dependencias
 pip install -r requirements.txt
 
-# 2. Ejecutar toda la suite de pruebas unitarias (112 passed, 2 skipped)
+# 2. Ejecutar toda la suite de pruebas unitarias (115 passed, 2 skipped)
 python3 -m pytest tests/ -v
 
 # 3. Verificar régimen sostenible (0.50 t/h nominal) en el tren acoplado NPT-3

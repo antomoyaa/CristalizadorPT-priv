@@ -60,7 +60,7 @@ El análisis de los registros operacionales reales de SQM (`10–15 nov 2026`, s
 
 ### 3.3 Validación Automatizada del Repositorio
 * **Restricción dura de $\text{KClO}_4$ (`dilution_kclo4_hard_constraint`):** Acoplada en `msmpr_core/control.py` + `dpbe.py` ($\ln\Gamma_{\text{KClO}_4,0} = 1{,}571$, $T_{\text{sat}} = 41{,}29\text{ }^\circ\text{C}$).
-* **Suite `pytest`:** `112 passed, 2 skipped` (`tests/test_core.py`, `tests/test_datos_y_bases.py`, `tests/test_control_integrado.py`, `tests/test_revision_vacio_trim_balance.py`, `tests/test_sostenible_y_avanzado.py`, `tests/test_revision_patches.py` y `tests/test_replay_calib.py`).
+* **Suite `pytest`:** `115 passed, 2 skipped` (`tests/test_core.py`, `tests/test_datos_y_bases.py`, `tests/test_control_integrado.py`, `tests/test_revision_vacio_trim_balance.py`, `tests/test_sostenible_y_avanzado.py`, `tests/test_revision_patches.py` y `tests/test_replay_calib.py`).
 * **Figuras de síntesis:** `docs/fig/10_replay_campana_real_SQM.png` y `docs/fig/11_diagnostico_replay.png` (ver `docs/diagnostico_replay.md`).
 
 ---
