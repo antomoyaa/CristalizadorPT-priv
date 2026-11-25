@@ -944,8 +944,16 @@ def simular_recirculacion_y_magnesio(
     duration_min=360.0,
     dt_min=0.05,
     F_303_nom=F303_NOM, F_303_min=12.0, F_303_max=42.0,
+    alpha0=0.25, k_trim_ait=None, k_trim_mg=0.018, k_trim_sat=0.0, margen_sat_gL=0.15,
 ):
-    """Evalúa la recirculación B3520 -> A3110 y las 3 hipótesis de interacción Mg2+ / ClO4- con datos PFD y Base de datos.xlsx."""
+    """Evalúa la recirculación B3520 -> A3110 y las 3 hipótesis de interacción Mg2+ / ClO4- con datos PFD y Base de datos.xlsx.
+
+    alpha0 : valor inicial/bias de alpha_purge del modo inteligente (0.25 = arranque con reciclo; 1.0 = parte de la operación actual sin
+        reciclo, sin transitorio de arranque).
+    k_trim_ait, k_trim_mg : ganancias del trim de dilución por ClO4 (AIT 3105) y por Mg; k_trim_ait=None usa K_TRIM_AIT.
+    k_trim_sat : trim ADICIONAL de la razón de dilución [1/(g/L)] por cada g/L que C_ClO4 supera (C_sat_eff - margen_sat_gL).
+        0.0 reproduce el comportamiento original. Da autoridad al lazo cuando la purga está saturada (alpha=1).
+    """
     n_steps = int(duration_min / dt_min)
     w_ClO4_pre = PFD_MG_CLO4["w_ClO4_pre_nom_ppm"]
     w_Mg_pre = PFD_MG_CLO4["w_Mg_pre_nom_ppm"]
@@ -971,7 +979,8 @@ def simular_recirculacion_y_magnesio(
     pid_PIR1 = CommercialPID(1.5, 0.3, 0.0, VAC["P1_nom"], VAC["P1_nom"], *VAC["P1_lim"])
     pid_PIR2 = CommercialPID(1.5, 0.3, 0.0, VAC["P2_nom"], VAC["P2_nom"], *VAC["P2_lim"])
     pid_FIRC3103 = CommercialPID(1.25, 0.45, 0.0, F_303_nom, F_303_nom, F_303_min, F_303_max)
-    pid_AIC3522 = CommercialPID(-0.38, 22.0, 0.0, 3.95, 0.25, 0.12, 1.00)
+    pid_AIC3522 = CommercialPID(-0.38, 22.0, 0.0, 3.95, alpha0, 0.12, 1.00)
+    k_ait = K_TRIM_AIT if k_trim_ait is None else k_trim_ait
 
     hist = []
     for k in range(n_steps):
@@ -1004,7 +1013,10 @@ def simular_recirculacion_y_magnesio(
         if use_AIT3105:
             ait_pv = s_AIT3105.read(w_ClO4_pre)
             delta_Mg_trim = max((w_Mg_pre - PFD_MG_CLO4["w_Mg_pre_nom_ppm"]) / PFD_MG_CLO4["w_Mg_pre_nom_ppm"], 0.0)
-            R_eff = R_0 + (K_TRIM_AIT * (F_303_nom / F303_NOM)) * (ait_pv - PFD_MG_CLO4["w_ClO4_pre_nom_ppm"]) + (0.018 * (F_303_nom / F303_NOM)) * delta_Mg_trim
+            R_eff = R_0 + (k_ait * (F_303_nom / F303_NOM)) * (ait_pv - PFD_MG_CLO4["w_ClO4_pre_nom_ppm"]) + (k_trim_mg * (F_303_nom / F303_NOM)) * delta_Mg_trim
+            if k_trim_sat > 0.0:
+                _csat_est = 4.50 - (0.85 * max((C_Mg_B3520 - 9.20) / 9.20, 0.0) if hipotesis_mg in ("salting_out", "combinada", "combined") else 0.0)
+                R_eff += k_trim_sat * max(C_ClO4_B3520 - (_csat_est - margen_sat_gL), 0.0)
         else:
             R_eff = R_0
 
@@ -1059,7 +1071,7 @@ def simular_recirculacion_y_magnesio(
             "C_Mg_B3520": C_Mg_B3520, "C_Mg_B3520_g_L": C_Mg_B3520 * k_gL_Mg,
             "C_ClO4_B3520": C_ClO4_B3520, "C_ClO4_B3520_g_L": C_ClO4_B3520,
             "C_sat_eff": C_sat_eff, "C_sat_KClO4_eff": C_sat_eff,
-            "F_rec_t_h": F_rec_B3520, "alpha_purge_pct": 100.0 * alpha_purge,
+            "F_rec_t_h": F_rec_B3520, "alpha_purge_pct": 100.0 * alpha_purge, "F_303_t_h": F_303_actual,
             "M_KNO3_t_h": M_KNO3, "ppm_ClO4_final_6000": ppm_final_6000,
             "ppm_Mg_crudo_17": ppm_Mg_17, "ppm_Mg_final_6000": ppm_Mg_final_6000,
         })

@@ -105,3 +105,29 @@ def test_rga_volume_closure_invalido():
     x0, u0, d0 = pl.steady_state(alpha=0.25)
     with pytest.raises(ValueError):
         C.rga_from_plant(pl, x0, u0, d0, volume_closure="otro")
+
+
+# ----------------------------------------------------------------- 6.7: recirculación inteligente (saturación de purga)
+def _smart(**kw):
+    return plant.simular_recirculacion_y_magnesio("reciclo_inteligente", use_AIT3105=True, hipotesis_mg="combinada", **kw)
+
+
+def test_recirculacion_original_se_mantiene_con_defaults():
+    d = _smart()
+    assert d["ppm_ClO4_final_6000"].max() == pytest.approx(67.6, abs=0.3)          # arranque con reciclo
+    assert d[d.t_min > 150]["ppm_ClO4_final_6000"].iloc[-1] == pytest.approx(44.4, abs=0.3)
+    assert d["alpha_purge_pct"].iloc[-1] == pytest.approx(100.0, abs=0.5)           # purga saturada
+    assert "F_303_t_h" in d.columns
+
+
+def test_alpha0_1_elimina_transitorio_de_arranque():
+    d = _smart(alpha0=1.0)
+    assert d[d.t_min < 140]["ppm_ClO4_final_6000"].max() < 40.0
+
+
+def test_trim_por_saturacion_devuelve_autoridad_tras_el_escalon_de_mg():
+    sin = _smart(alpha0=1.0, F_303_max=60.0)
+    con = _smart(alpha0=1.0, k_trim_sat=0.10, F_303_max=60.0)
+    assert sin["ppm_ClO4_final_6000"].iloc[-1] > 40.0
+    assert con["ppm_ClO4_final_6000"].max() < 40.0
+    assert con["F_303_t_h"].iloc[-1] > sin["F_303_t_h"].iloc[-1]
