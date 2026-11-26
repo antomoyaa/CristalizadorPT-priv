@@ -37,9 +37,9 @@ La arquitectura balanceada por etapas (coordinando nivel `LIC B3520` con pulsos 
 
 ## 3. Regla de alerta empírica de excedencias (>40 ppm en Área 6000)
 
-- **Fuente:** Tabla empírica consolidada (n=6 966, docs/tabla_resultados.md §2-3)
+- **Fuente:** Base química real SQM (Base de datos_v2.xlsx, n=7128, test 2026 n=3416)
 
-- **AUC fuera de muestra:** ML Refinación = `0.74`, Crudo = `0.64`
+- **AUC fuera de muestra:** ML Refinación = `0.739`, Crudo = `0.635`, Logística combinada = `0.758`
 
 
 | Nivel                 | Condición operativa (LIMS c/2 h)        |   P(>40 ppm) empírica [%] | Acción de control recomendada                                                              |

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import pathlib
+import sys
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -13,6 +14,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def simular_balance_b3520(
@@ -129,10 +132,32 @@ def construir_regla_alerta_empirica() -> tuple[pd.DataFrame, dict]:
         "umbral_alerta_crudo_ppm": 400.0,
     }
     try:
-        from msmpr_core.replay_calib import construir_dataset_quimica, _auc
-        cands = sorted((ROOT / "data").glob("Base de datos_v*.xlsx"))
-        if cands:
-            df_q = construir_dataset_quimica(cands[-1])
+        from msmpr_core.replay_calib import construir_dataset_quimica, _auc, _ts
+        cands_v2 = sorted((ROOT / "data").glob("Base de datos_v2*.xlsx"), reverse=True)
+        cands_all = cands_v2 + [c for c in sorted((ROOT / "data").glob("Base de datos*.xlsx"), reverse=True) if c not in cands_v2]
+        df_q, arch_usado = None, None
+        for cand in cands_all:
+            try:
+                df_q = construir_dataset_quimica(cand)
+                arch_usado = cand
+                break
+            except ValueError:
+                # Si falta 'Temp. A3000' (ej. v3), cargar solo las 3 hojas usadas por la logística
+                xl = pd.ExcelFile(cand)
+                if {"Cristal sin Refinar", "Cristal Refinado", "ML Refi"}.issubset(set(xl.sheet_names)):
+                    def _get(hoja, col, ren):
+                        d = xl.parse(hoja)
+                        d = d.assign(TS=_ts(d)).dropna(subset=["TS"]).set_index("TS").sort_index()
+                        d = d[~d.index.duplicated(keep="last")]
+                        return pd.to_numeric(d[col], errors="coerce").rename(ren).to_frame()
+                    df_q = _get("Cristal sin Refinar", "ClO4", "crudo_ppm").join(
+                        [_get("Cristal Refinado", "ClO4", "refi_ppm"),
+                         _get("ML Refi", "KClO4 IC", "mlrefi_KClO4")],
+                        how="inner",
+                    )
+                    arch_usado = cand
+                    break
+        if df_q is not None:
             tr = df_q[df_q.index < "2026-01-01"].dropna(subset=["mlrefi_KClO4", "crudo_ppm", "refi_ppm"])
             te = df_q[df_q.index >= "2026-01-01"].dropna(subset=["mlrefi_KClO4", "crudo_ppm", "refi_ppm"])
             if len(tr) >= 100 and len(te) >= 50:
@@ -150,7 +175,7 @@ def construir_regla_alerta_empirica() -> tuple[pd.DataFrame, dict]:
                 X_te = np.c_[np.ones(len(te)), (te[["mlrefi_KClO4", "crudo_ppm"]].values - mu) / sd]
                 score_te = 1.0 / (1.0 + np.exp(-np.clip(X_te @ w, -30, 30)))
                 y_te = te["refi_ppm"].values > 40.0
-                met["fuente"] = f"Base química real SQM ({cands[-1].name}, n={len(df_q)}, test 2026 n={len(te)})"
+                met["fuente"] = f"Base química real SQM ({arch_usado.name}, n={len(df_q)}, test 2026 n={len(te)})"
                 met["auc_ml_refi"] = round(float(_auc(te["mlrefi_KClO4"], y_te)), 3)
                 met["auc_crudo"] = round(float(_auc(te["crudo_ppm"], y_te)), 3)
                 met["auc_combinado_logistica"] = round(float(_auc(score_te, y_te)), 3)
