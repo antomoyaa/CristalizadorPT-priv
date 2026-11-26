@@ -111,6 +111,12 @@ def _cadena_d50(T1, T2, tau1_h, tau2_h, F_pre, F_303):
     d2, s2, _ = _d50_mech(C1, tau2_h, T2)           # la etapa 2 recibe el licor de la etapa 1 (sin semillas: simplificacion)
     return d1, d2, s1, s2
 
+def _cadena_d50_y_kno3(T1, T2, tau1_h, tau2_h, F_pre, F_303):
+    """Devuelve d50, sobresaturación y concentración de KNO3 disuelto [kg/m3] en entrada, A3110 y A3210."""
+    C_in1 = _C_in1(F_pre, F_303)
+    d1, s1, C1 = _d50_mech(C_in1, tau1_h, T1)
+    d2, s2, C2 = _d50_mech(C1, tau2_h, T2)
+    return d1, d2, s1, s2, C_in1, C1, C2
 
 _REF_CACHE = {}
 
@@ -350,6 +356,11 @@ def simulate_plant_npt3_calibrated(
     tauD_T_override=None,
     vac_limits_override=None,
     F_303_nom=F303_NOM, F_303_min=12.0, F_303_max=42.0,
+    temp_cascade=True,        # True: automatizado TIR->PIRCAL | False: operación actual (PIRCAL manual fijo)
+    T1_sp_C=55.0,             # Consigna maestra A3110 [°C]
+    T2_sp_C=40.0,             # Consigna maestra A3210 [°C]
+    use_slave_PIRCAL=False,   # False por defecto para no alterar Kcu/tests existentes; True al simular el esclavo rápido
+    vac_dist_bar=0.0,         # Perturbación externa de vacío (ej. +0.008 bar en eyectores/condensador)
     *,
     use_AIC3255=None,  # alias DEPRECADO de use_AIC3522 (tag antiguo)
 ):
@@ -427,6 +438,17 @@ def simulate_plant_npt3_calibrated(
     pid_AIC3522 = CommercialPID(-0.48 if is_osc else -0.28, 18.0 if is_osc else 45.0, 0.0, 4.00, 0.22, 0.08, 0.65)
     pid_FIRC3103 = CommercialPID(Kc=1.25, tau_I=0.45, tau_D=0.0, sp=F_303_nom, u_bias=F_303_nom, u_min=F_303_min, u_max=F_303_max)
 
+    pid_TP1 = CommercialPID(Kc_T * VAC["Kc_scale1"], tauI_T, tauD_T, T1_sp_C, VAC["P1_nom"], *lim1)
+    pid_TP2 = CommercialPID(Kc_T * VAC["Kc_scale2"], tauI_T, tauD_T, T2_sp_C, VAC["P2_nom"], *lim2)
+
+    # Lazos esclavos rápidos de presión (PIRCAL 3101 y PIRCAL 3201, existentes en planta)
+    P_vac1, P_vac2 = VAC["P1_nom"], VAC["P2_nom"]
+    pid_PIR1 = CommercialPID(Kc=1.8, tau_I=0.35, tau_D=0.0, sp=VAC["P1_nom"], u_bias=VAC["P1_nom"], u_min=lim1[0], u_max=lim1[1])
+    pid_PIR2 = CommercialPID(Kc=1.8, tau_I=0.35, tau_D=0.0, sp=VAC["P2_nom"], u_bias=VAC["P2_nom"], u_min=lim2[0], u_max=lim2[1])
+
+    C_KNO3_in1 = _C_in1(F_PRE_NOM, F_303_nom)
+    C_KNO3_1 = C_KNO3_2 = float("nan")
+    
     hist = []
     for k in range(n_steps):
         t = k * dt_min
@@ -458,8 +480,25 @@ def simulate_plant_npt3_calibrated(
         w_ClO4_1 = (F_pre * w_ClO4_pre + F_303_actual * PFD_MG_CLO4["w_ClO4_303_ppm"]) / F_1
         w_Mg_1 = (F_pre * w_Mg_pre + F_303_actual * PFD_MG_CLO4["w_Mg_303_ppm"]) / F_1
 
-        P_vac1 = pid_TP1.step(sens_TIR3101.read(T1), dt_min)
-        P_vac2 = pid_TP2.step(sens_TIR3201.read(T2), dt_min)
+        # --- Control de temperatura en cascada: TIR 3101/3201 (maestro) -> PIRCAL 3101/3201 (esclavo) ---
+        if temp_cascade:
+            P_vac1_sp = pid_TP1.step(sens_TIR3101.read(T1), dt_min)
+            P_vac2_sp = pid_TP2.step(sens_TIR3201.read(T2), dt_min)
+        else:
+            # Operación actual sin automatizar: operador deja fija la consigna de vacío en PIRCAL
+            P_vac1_sp = VAC["P1_nom"]
+            P_vac2_sp = VAC["P2_nom"]
+
+        dP_ext = vac_dist_bar if 60.0 <= t < 180.0 else 0.0   # Perturbación de vacío (ej. falla de condensador/eyector)
+        if use_slave_PIRCAL:
+            pid_PIR1.sp, pid_PIR2.sp = P_vac1_sp, P_vac2_sp
+            P_vac1 += (dt_min / 0.25) * (pid_PIR1.step(P_vac1, dt_min) + dP_ext - P_vac1)
+            P_vac2 += (dt_min / 0.25) * (pid_PIR2.step(P_vac2, dt_min) + dP_ext - P_vac2)
+        else:
+            P_vac1, P_vac2 = P_vac1_sp + dP_ext, P_vac2_sp + dP_ext
+
+        # --- Actualización mecanicista de d50 y concentraciones de KNO3 ---
+        
         if density_cascade:
             pid_LIC1.sp = pid_DIR1.step(sens_DIR3101.read(xS1), dt_min)
             pid_LIC2.sp = pid_DIR2.step(sens_DIR3201.read(xS2), dt_min)
@@ -486,10 +525,14 @@ def simulate_plant_npt3_calibrated(
         xS1 += (dt_min / 9.0) * (xS1_eq - xS1)
         xS2 += (dt_min / 9.0) * (xS2_eq - xS2)
 
+        # ... aquí arriba ya se calcularon F_6, F_11, M1, M2, T1, T2, xS1 y xS2 ...
+
         if k % n_upd == 0:
             try:
                 r1n, r2n, _, _ = _ref_nominal()
-                m1, m2, sigma1, sigma2 = _cadena_d50(T1, T2, M1 / max(F_6, 1.0), M2 / max(F_11, 1.0), F_pre, F_303_actual)
+                m1, m2, sigma1, sigma2, C_KNO3_in1, C_KNO3_1, C_KNO3_2 = _cadena_d50_y_kno3(
+                    T1, T2, M1 / max(F_6, 1.0), M2 / max(F_11, 1.0), F_pre, F_303_actual
+                )
                 if m1 > 0.0 and m2 > 0.0:
                     d50_k1, d50_k2 = m1 / r1n, m2 / r2n
             except (ValueError, RuntimeError):
@@ -535,12 +578,12 @@ def simulate_plant_npt3_calibrated(
             "d50_1_um": d50_1, "d50_2_um": d50_2, "sigma1": sigma1, "sigma2": sigma2,
             "level1_pct": LEVEL["level_sp_pct"] * L1, "level2_pct": LEVEL["level_sp_pct"] * L2,
             "ppm_ClO4_crudo_17": ppm_ClO4_17, "ppm_ClO4_final_6000": ppm_ClO4_final_6000,
-            "ppm_Mg_crudo_17": ppm_Mg_17, "ppm_Mg_final_6000": ppm_Mg_final_6000,
+            "ppm_Mg_crudo_17": ppm_Mg_17, "ppm_Mg_final_6000": ppm_Mg_final_6000, "P_vac1_sp_bar": P_vac1_sp, "P_vac2_sp_bar": P_vac2_sp,
+            "C_KNO3_in1_kg_m3": C_KNO3_in1, "C_KNO3_1_kg_m3": C_KNO3_1, "C_KNO3_2_kg_m3": C_KNO3_2,
         })
     return pd.DataFrame(hist)
 
 # === FUNCIONES CENTRALIZADAS: MAGNESIO (Mg2+), RECIRCULACIÓN B3520, FLUJO ÓPTIMO Y ROBUSTEZ ===
-
 
 def simular_planta_agua_dilucion_magnesio(
     strategy="AIT3105_and_Mg_trim",   # "ratio_FFIC3102", "high_water_manual", "AIT3105_only", "AIT3105_and_Mg_trim"
@@ -1073,7 +1116,7 @@ def simular_recirculacion_y_magnesio(
             "C_sat_eff": C_sat_eff, "C_sat_KClO4_eff": C_sat_eff,
             "F_rec_t_h": F_rec_B3520, "alpha_purge_pct": 100.0 * alpha_purge, "F_303_t_h": F_303_actual,
             "M_KNO3_t_h": M_KNO3, "ppm_ClO4_final_6000": ppm_final_6000,
-            "ppm_Mg_crudo_17": ppm_Mg_17, "ppm_Mg_final_6000": ppm_Mg_final_6000,
+            "ppm_Mg_crudo_17": ppm_Mg_17, "ppm_Mg_final_6000": ppm_Mg_final_6000, 
         })
     return pd.DataFrame(hist)
 
