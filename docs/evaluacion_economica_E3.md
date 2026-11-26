@@ -1,48 +1,50 @@
-# Evaluación Económica Preliminar (Rúbrica E3 — Supuestos Referenciales Editables)
+# Evaluación Económica E3 (Calibrada con Planilla del Equipo — Towler & Sinnott)
 
-> **Nota de trazabilidad:** Los precios unitarios, CAPEX y costos de reproceso son **valores referenciales de ingeniería** (editables en `SUPUESTOS_E3` dentro de `scripts/evaluacion_economica_e3.py`) hasta contar con cotizaciones formales o confirmación de SQM. El caso base asume **$\Delta\text{KNO}_3 = 0{,}0\text{ t/h}$** para no depender del beneficio no calibrado del *replay*.
+Base: WACC = `14,11 %`, horizonte `10 años`, depreciación lineal `5 años` sobre FCI, rampa `50 %` Año 1, impuesto `25,5 %` (años 1-2) y `23,0 %` (desde año 3), campaña de calibración `3,0 kUSD`.
 
-## 1. Comparativa de Alternativas (Horizonte 10 años, WACC 10 %, Impuesto 27 %)
+## 1. Comparativa de Alternativas (Caso Base Conservador, Δη = 2,0 % sin crédito de agua de dilución)
 
 | Alternativa                           |   CAPEX [kUSD] |   OPEX [kUSD/año] |   Beneficio bruto [kUSD/año] |   VAN [kUSD] |   TIR [%] |   Payback simple [años] |   Payback descontado [años] |
 |:--------------------------------------|---------------:|------------------:|-----------------------------:|-------------:|----------:|------------------------:|----------------------------:|
-| A (Recomendada: DCS + FV 3522 + LIMS) |            174 |                14 |                        820.7 |       3473.3 |     341.1 |                    0.29 |                        0.32 |
-| B (Con analizador en línea AIT)       |            438 |                52 |                        855.7 |       3239.8 |     136.6 |                    0.73 |                        0.8  |
+| A (Recomendada: DCS + FV 3522 + LIMS) |          159.3 |              16.4 |                         90.7 |        130.6 |      31.5 |                    3.04 |                        4.12 |
+| B (Con analizadores en línea AIT/AIC) |          414.3 |              38.6 |                         90.7 |       -204.7 |       0.1 |                    9.96 |                      nan    |
 
 
-## 2. Escenarios — Alternativa A (Recomendada)
+## 2. Escenarios de Alternativa A (incluyendo Fase 1 Balanceada con −40 % agua)
 
-| Escenario   |   CAPEX [kUSD] |   Beneficio bruto [kUSD/año] |   VAN [kUSD] |   TIR [%] |   Payback descontado [años] |
-|:------------|---------------:|-----------------------------:|-------------:|----------:|----------------------------:|
-| Conservador |            174 |                        204.8 |        639.3 |      82.5 |                        1.4  |
-| Base        |            174 |                        820.7 |       3473.3 |     341.1 |                        0.32 |
-| Optimista   |            174 |                       1741.5 |       8319.4 |     727.5 |                        0.15 |
-
-
-## 3. Análisis de Sensibilidad (Tornado — 5 Variables)
-
-| Variable                                  |   VAN Bajo [kUSD] |   VAN Base [kUSD] |   VAN Alto [kUSD] |   Amplitud [kUSD] |
-|:------------------------------------------|------------------:|------------------:|------------------:|------------------:|
-| Captura de rechazos >40 ppm (15 % – 55 %) |            1677.3 |            3473.3 |            5269.4 |            3592.1 |
-| Costo evitado reproceso (12 – 32 USD/t)   |            2044.7 |            3473.3 |            4902   |            2857.3 |
-| Ahorro de agua de dilución (0 – 15 t/h)   |            2935.1 |            3473.3 |            4280.7 |            1345.6 |
-| Tasa de descuento WACC (12 % – 8 %)       |            3179.9 |            3473.3 |            3809   |             629.1 |
-| Variación de CAPEX (+30 % / -20 %)        |            3429.8 |            3473.3 |            3502.4 |              72.6 |
+| Escenario                                                 |   CAPEX [kUSD] |   Beneficio bruto [kUSD/año] |   VAN [kUSD] |   TIR [%] |   Payback simple [años] |   Payback descontado [años] |
+|:----------------------------------------------------------|---------------:|-----------------------------:|-------------:|----------:|------------------------:|----------------------------:|
+| Conservador Estricto (Δη=1,3 %, f=2,2, P=800)             |          174.9 |                         54   |        -23.2 |      10.8 |                    5.69 |                      nan    |
+| Caso Base Conservador (Δη=2,0 %, sin agua dil.)           |          159.3 |                         90.7 |        130.6 |      31.5 |                    3.04 |                        4.12 |
+| Objetivo Fase 1 Balanceada (Δη=2,5 % + ahorro agua -40 %) |          159.3 |                        236.3 |        659.9 |      83.2 |                    1.44 |                        1.65 |
+| Optimista (Δη=5,0 % meta SQM, f=1,5, P=950)               |          120.2 |                        245.8 |        733.2 |     109.1 |                    1.19 |                        1.32 |
 
 
-## 4. Flujo de Caja Descontado — Alternativa A (Caso Base)
+## 3. Análisis de Sensibilidad (Tornado — 6 Variables)
 
-|   Año |   Beneficios [kUSD] |   OPEX [kUSD] |   Depreciación [kUSD] |   UAI [kUSD] |   Impuesto [kUSD] |   Flujo Neto [kUSD] |   Flujo Descontado [kUSD] |
-|------:|--------------------:|--------------:|----------------------:|-------------:|------------------:|--------------------:|--------------------------:|
-|     0 |                 0   |             0 |                   0   |          0   |               0   |              -174   |                    -174   |
-|     1 |               820.7 |           -14 |                 -17.4 |        789.3 |            -213.1 |               593.6 |                     539.6 |
-|     2 |               820.7 |           -14 |                 -17.4 |        789.3 |            -213.1 |               593.6 |                     490.6 |
-|     3 |               820.7 |           -14 |                 -17.4 |        789.3 |            -213.1 |               593.6 |                     446   |
-|     4 |               820.7 |           -14 |                 -17.4 |        789.3 |            -213.1 |               593.6 |                     405.4 |
-|     5 |               820.7 |           -14 |                 -17.4 |        789.3 |            -213.1 |               593.6 |                     368.6 |
-|     6 |               820.7 |           -14 |                 -17.4 |        789.3 |            -213.1 |               593.6 |                     335.1 |
-|     7 |               820.7 |           -14 |                 -17.4 |        789.3 |            -213.1 |               593.6 |                     304.6 |
-|     8 |               820.7 |           -14 |                 -17.4 |        789.3 |            -213.1 |               593.6 |                     276.9 |
-|     9 |               820.7 |           -14 |                 -17.4 |        789.3 |            -213.1 |               593.6 |                     251.7 |
-|    10 |               820.7 |           -14 |                 -17.4 |        789.3 |            -213.1 |               593.6 |                     228.9 |
+| Variable                                    |   VAN Bajo [kUSD] |   VAN Alto [kUSD] |   Amplitud [kUSD] |
+|:--------------------------------------------|------------------:|------------------:|------------------:|
+| Ahorro agua dilución Fase 1 (0 vs 7,96 t/h) |             130.6 |             577.5 |             446.9 |
+| Mejora eficiencia Δη (1,0 % vs 3,5 %)       |             -40.5 |             378   |             418.5 |
+| Factor instalación f_inst (3,5 vs 1,5)      |               7.9 |             169.9 |             162   |
+| Margen operacional (12 % vs 18 %)           |              63.8 |             195.9 |             132.1 |
+| Tasa descuento WACC (18 % vs 10 %)          |              89.5 |             186.4 |              96.9 |
+| Precio KNO₃ (800 vs 950 USD/t)              |             101.9 |             158.9 |              57   |
+
+
+## 4. Flujo de Caja Descontado — Alternativa A (Caso Base Conservador)
+
+|   Año |   Beneficio [kUSD] |   OPEX [kUSD] |   EBITDA [kUSD] |   Deprec. [kUSD] |   Impuesto [kUSD] |   Flujo Neto [kUSD] |   Flujo Desc. [kUSD] |   Acum. Desc. [kUSD] |
+|------:|-------------------:|--------------:|----------------:|-----------------:|------------------:|--------------------:|---------------------:|---------------------:|
+|     0 |               0    |          0    |            0    |             0    |              0    |             -159.3  |              -159.3  |              -159.3  |
+|     1 |              45.34 |         16.37 |           28.96 |            31.26 |              0    |               28.96 |                25.38 |              -133.92 |
+|     2 |              90.67 |         16.37 |           74.3  |            31.26 |             10.97 |               63.32 |                48.63 |               -85.29 |
+|     3 |              90.67 |         16.37 |           74.3  |            31.26 |              9.9  |               64.4  |                43.34 |               -41.95 |
+|     4 |              90.67 |         16.37 |           74.3  |            31.26 |              9.9  |               64.4  |                37.98 |                -3.96 |
+|     5 |              90.67 |         16.37 |           74.3  |            31.26 |              9.9  |               64.4  |                33.29 |                29.32 |
+|     6 |              90.67 |         16.37 |           74.3  |             0    |             17.09 |               57.21 |                25.91 |                55.23 |
+|     7 |              90.67 |         16.37 |           74.3  |             0    |             17.09 |               57.21 |                22.71 |                77.94 |
+|     8 |              90.67 |         16.37 |           74.3  |             0    |             17.09 |               57.21 |                19.9  |                97.84 |
+|     9 |              90.67 |         16.37 |           74.3  |             0    |             17.09 |               57.21 |                17.44 |               115.28 |
+|    10 |              90.67 |         16.37 |           74.3  |             0    |             17.09 |               57.21 |                15.28 |               130.57 |
 
