@@ -5,6 +5,8 @@
 
 > **Resultados y estado de validación:** ver `docs/tabla_resultados.md` (tabla para presentar) y `docs/PLAN_ENTREGA_FINAL.md` (qué corregir, qué debe resolver SQM y qué no alcanza antes del 7-dic).
 
+> **Mg y perclorato:** el Mg del cristal como trazador del licor adherido muestra que ≈ 1/3 del ClO₄⁻ del cristal sin refinar (77–85 % sobre 400 ppm) no se explica por licor adherido y que esa parte predice el refinado (AUC 0,79); ver `docs/analisis_mg_perclorato.md`.
+
 ---
 
 
