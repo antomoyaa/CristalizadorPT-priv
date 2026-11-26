@@ -56,7 +56,7 @@ def resumen_trazador(x: pd.DataFrame, cols: dict | None = None) -> dict:
     """Métricas agregadas: fracción no explicada, AUC de cada componente y exceso por nivel de ClO4 del cristal."""
     c = {**COLS, **(cols or {})}
     y = x["refi_gt40"]
-    por_nivel = x.groupby(pd.cut(x[c["clo4_cristal"]], [0, 200, 400, 600, 1e6])).agg(
+    por_nivel = x.groupby(pd.cut(x[c["clo4_cristal"]], [0, 200, 400, 600, 1e6]), observed=False).agg(
         n=("frac_exceso", "size"), frac_exceso_mediana=("frac_exceso", "median"), pct_refinado_gt40=("refi_gt40", lambda s: 100 * s.mean()))
     return {
         "n": int(len(x)),
@@ -76,4 +76,4 @@ def envolvente_kclo4_vs_mg(df: pd.DataFrame, cols: dict | None = None, bins=(0, 
     c = {**COLS, **(cols or {})}
     m = df[[c["mg_licor"], c["kclo4_licor_gL"]]].dropna()
     m.columns = ["Mg", "KClO4"]
-    return m.groupby(pd.cut(m["Mg"], list(bins))).agg(n=("KClO4", "size"), mediana=("KClO4", "median"), techo=("KClO4", lambda s: s.quantile(q)))
+    return m.groupby(pd.cut(m["Mg"], list(bins)), observed=False).agg(n=("KClO4", "size"), mediana=("KClO4", "median"), techo=("KClO4", lambda s: s.quantile(q)))

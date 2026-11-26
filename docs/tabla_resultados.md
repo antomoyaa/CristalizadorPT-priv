@@ -95,3 +95,14 @@ Escenario dinámico de 300 min con escalones simultáneos de carga (`+8 %`), tem
 | Actual SIN cascada T→P (`PIRCAL` manual, 27,1 t/h) | 41,79 / 41,73 | 27,93 | 64,02 (61,9 % >40) | 538,6 / 188,6 | 467,0 / 517,4 |
 | Cascada TIR→PIRCAL + Dilución PFD (27,1 t/h) | 40,52 / 40,00 | 36,20 | 26,37 (0,0 % >40) | 528,1 / 185,6 | 452,7 / 500,2 |
 | Cascada TIR→PIRCAL + Sostenible (0,50 t/h + AIC 3522) | 40,52 / 40,00 | 0,67 | 22,65 (0,0 % >40) | 576,2 / 185,0 | 514,0 / 564,0 |
+
+## 9. Magnesio y perclorato (tabla horaria 2025, n = 3 391; `docs/analisis_mg_perclorato.md`)
+
+| Resultado | Valor | Lectura |
+|---|---|---|
+| ClO4- del cristal sin refinar no explicado por el licor adherido (Mg como trazador) | mediana 33 % (17–73 %) | no todo el perclorato es impregnación |
+| …según ClO4- del cristal: ≤200 / 200–400 / 400–600 / >600 ppm | 20 / 46 / 77 / 85 % | domina sobre ≈ 400 ppm |
+| AUC para refinado >40 ppm: explicado por licor / no explicado | 0,40 / 0,79 | lo no adherido explica el ppm final |
+| Techo de KClO4 en el MLK con Mg 25–40 g/L | ≈ 6 g/L (plano) | sin caída de solubilidad visible por Mg |
+| Spearman Mg vs ClO4- en el cristal sin refinar | 0,37 | ambos arrastrados por el licor, pero ClO4- tiene una parte propia |
+| Modelos supervisados de la rama de analitos (1 h adelante) | R2 ClO4- crudo 0,04–0,07; refinado −0,13 a −0,17 | no superan la persistencia (Ridge: MAE igual al baseline) |
