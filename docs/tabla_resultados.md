@@ -24,6 +24,9 @@ Fuentes: simulaciones de este repositorio (`msmpr_core`, NB05/NB06), base quími
 | KClO4 del MLK (g/L) | 0,03 | 0,47 |
 | Exceso del MLK sobre C_sat (hinge del replay) | -0,02 | 0,50 (azar) |
 
+
+> **Cruce con modelado estadístico (`Prediccion_efecto_de_analitos`, ene–dic 2025):** `Temp_Cristalización2_A3000` (`A3210`) es el predictor operacional n.º 1 por importancia de permutación para $\text{ClO}_4^-$ crudo (`0,071`) y refinado (`0,092`, seguido de `T Cry A3110` con `0,051`); `Agua de dilución` no resulta estadísticamente significativa ($p > 0{,}39$ en OLS); `Cristal sin refinar Mg` alcanza $R^2 = 0{,}653$ fuera de muestra (ventana $8\text{ h}$) dominado por `Agua de lavado Cf 3000` (`0,337`); y `RidgeCV` no supera el *baseline* $\Delta = 0$ en $\text{ClO}_4^-$, descartando un *soft-sensor* ML puro para cerrar el lazo.
+
 ## 3. Probabilidad de refinado >40 ppm
 
 | Condición | % de muestras >40 ppm | n |
@@ -69,16 +72,26 @@ Fuentes: simulaciones de este repositorio (`msmpr_core`, NB05/NB06), base quími
 | Propuesta (README, replay) | 0,50 (promedio 0,67–0,98) | contrafactual sin balance de agua cerrado |
 | 6.7, ClO4- +550 ppm | ≥ 22 | mín. F303 constante con ppm ≤ 40 |
 | 6.7, Mg2+ +35 % | ≥ 44 (46 con 2 ppm de margen) | ídem |
-| Paso 10 (+650 ppm ClO4-), barrido fino sin ruido | ≥ 32 (mín. J: 34) | pico ≤ 40 ppm |
-| Paso 10, tabla de Pareto original | 36,8 | mín. J en grilla gruesa con ruido |
+| 6.8c (+650 ppm ClO4-), barrido fino sin ruido | ≥ 32 (mín. J: 34) | pico ≤ 40 ppm |
+| 6.8c, tabla de Pareto original | 36,8 | mín. J en grilla gruesa con ruido |
 
 ## 7. Replay contrafactual (campaña 10–15 nov 2026)
 
 | Indicador | Valor | Lectura |
 |---|---|---|
 | Baseline vs 56 análisis reales | RMSE 22,45 ppm; r = 0,26 | ajuste bajo |
-| Excedencias reales detectadas por el baseline | 3 de 15 (sensibilidad 0,20; especificidad 0,95) | no reproduce los picos |
-| Excedencias: real vs simulado | 26,8 % vs 9,5 % | el baseline subestima |
+| Excedencias reales detectadas por el baseline | 3 de 15 (sensibilidad 0,20; especificidad 0,93) | no reproduce los picos |
+| Excedencias: real vs simulado | 26,8 % vs 11,3 % | el baseline subestima |
 | Recalibrar 6 coeficientes (entrena 16-oct a 5-nov; valida 5 a 15-nov) | sensibilidad 0,12 → 0,00 | coprecipitación tiende a 0 |
 | Propuesta en el modelo | máx. 23,7 ppm; 0 % >40; −95,1 % de agua | propiedad del modelo (piso de 20 ppm), no predicción de planta |
 | Beneficio neto de KNO3 (+6 t/h) | fórmula lineal 0,38·Δagua − 0,055·Δpurga | coeficientes sin calibrar; ML 234 ≈ 0,6 t KNO3-eq/m3 |
+
+## 8. Automatización en cascada TIR → PIRCAL (6.12, Figura 12; modelo con *placeholders*)
+
+Escenario dinámico de 300 min con escalones simultáneos de carga (`+8 %`), temperatura de alimentación (`+3,5 °C`), perturbación de vacío (`+0,008 bar`) y $\text{ClO}_4^-$ en `SSK` (`+650 ppm`).
+
+| Estrategia | $T_2$ máx. / final [°C] | Agua media [t/h] | $\text{ClO}_4^-$ máx. A6000 [ppm] | $\text{KNO}_3$ entrada / licor A3210 [kg/m³] | $d_{50}$ A3210 mín. / final [µm] |
+|---|---|---|---|---|---|
+| Actual SIN cascada T→P (`PIRCAL` manual, 27,1 t/h) | 41,79 / 41,73 | 27,93 | 64,02 (61,9 % >40) | 538,6 / 188,6 | 467,0 / 517,4 |
+| Cascada TIR→PIRCAL + Dilución PFD (27,1 t/h) | 40,52 / 40,00 | 36,20 | 26,37 (0,0 % >40) | 528,1 / 185,6 | 452,7 / 500,2 |
+| Cascada TIR→PIRCAL + Sostenible (0,50 t/h + AIC 3522) | 40,52 / 40,00 | 0,67 | 22,65 (0,0 % >40) | 576,2 / 185,0 | 514,0 / 564,0 |
