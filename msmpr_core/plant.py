@@ -417,8 +417,6 @@ def simulate_plant_npt3_calibrated(
     tauI_T = tauI_T if tauI_T_override is None else tauI_T_override
     tauD_T = tauD_T if tauD_T_override is None else tauD_T_override
     lim1, lim2 = (VAC["P1_lim"], VAC["P2_lim"]) if vac_limits_override is None else (vac_limits_override, vac_limits_override)
-    pid_TP1 = CommercialPID(Kc_T * VAC["Kc_scale1"], tauI_T, tauD_T, 55.0, VAC["P1_nom"], *lim1)
-    pid_TP2 = CommercialPID(Kc_T * VAC["Kc_scale2"], tauI_T, tauD_T, 40.0, VAC["P2_nom"], *lim2)
     # Cascada DIC (densidad, maestro lento) -> LIC (nivel, esclavo rapido) -> caudal de descarga (SIC 3101/3201).
     # El maestro de densidad ya no manda el caudal: ajusta la consigna de nivel (retencion) dentro de LEVEL["L_sp_lim"].
     # La severidad del modo (ZN / Hopf) se conserva escalando su ganancia respecto de la sintonia amortiguada (-650).
@@ -497,8 +495,6 @@ def simulate_plant_npt3_calibrated(
         else:
             P_vac1, P_vac2 = P_vac1_sp + dP_ext, P_vac2_sp + dP_ext
 
-        # --- Actualización mecanicista de d50 y concentraciones de KNO3 ---
-        
         if density_cascade:
             pid_LIC1.sp = pid_DIR1.step(sens_DIR3101.read(xS1), dt_min)
             pid_LIC2.sp = pid_DIR2.step(sens_DIR3201.read(xS2), dt_min)
@@ -525,8 +521,7 @@ def simulate_plant_npt3_calibrated(
         xS1 += (dt_min / 9.0) * (xS1_eq - xS1)
         xS2 += (dt_min / 9.0) * (xS2_eq - xS2)
 
-        # ... aquí arriba ya se calcularon F_6, F_11, M1, M2, T1, T2, xS1 y xS2 ...
-
+        # --- Actualización mecanicista de d50 y concentraciones de KNO3 ---
         if k % n_upd == 0:
             try:
                 r1n, r2n, _, _ = _ref_nominal()

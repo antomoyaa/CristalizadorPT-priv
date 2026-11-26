@@ -131,3 +131,43 @@ def test_trim_por_saturacion_devuelve_autoridad_tras_el_escalon_de_mg():
     assert sin["ppm_ClO4_final_6000"].iloc[-1] > 40.0
     assert con["ppm_ClO4_final_6000"].max() < 40.0
     assert con["F_303_t_h"].iloc[-1] > sin["F_303_t_h"].iloc[-1]
+
+# ----------------------------------------------------------------- 6.12: cascada TIR -> PIRCAL y seguimiento KNO3 / d50
+def test_cascada_temperatura_corrige_offset_vs_manual():
+    """Sin cascada (PIRCAL manual) T2 queda con offset; con cascada TIR->PIRCAL regresa a consigna."""
+    man = plant.simulate_plant_npt3_calibrated(
+        use_AIT3105=False, use_AIC3522=False,
+        temp_cascade=False, use_slave_PIRCAL=True, vac_dist_bar=0.008,
+    )
+    aut = plant.simulate_plant_npt3_calibrated(
+        use_AIT3105=True, use_AIC3522=True,
+        temp_cascade=True, use_slave_PIRCAL=True, vac_dist_bar=0.008,
+        F_303_nom=0.50, F_303_min=0.20, F_303_max=2.50,
+    )
+    sp43 = plant.simulate_plant_npt3_calibrated(
+        use_AIT3105=True, use_AIC3522=True,
+        temp_cascade=True, use_slave_PIRCAL=True, T2_sp_C=43.0,
+        F_303_nom=0.50, F_303_min=0.20, F_303_max=2.50,
+    )
+    assert man["T2_C"].iloc[-1] > 41.0
+    assert aut["T2_C"].iloc[-1] == pytest.approx(40.0, abs=0.15)
+    assert sp43["T2_C"].iloc[-1] == pytest.approx(43.0, abs=0.25)
+
+
+def test_columnas_kno3_y_d50_en_simulacion_integrada():
+    """Verifica columnas KNO3/P_vac_sp sin NaN y mayor KNO3/d50 en régimen sostenible vs. PFD."""
+    sost = plant.simulate_plant_npt3_calibrated(
+        use_AIT3105=True, use_AIC3522=True,
+        temp_cascade=True, use_slave_PIRCAL=True, vac_dist_bar=0.008,
+        F_303_nom=0.50, F_303_min=0.20, F_303_max=2.50,
+    )
+    pfd = plant.simulate_plant_npt3_calibrated(
+        use_AIT3105=True, use_AIC3522=True,
+        temp_cascade=True, use_slave_PIRCAL=True, vac_dist_bar=0.008,
+        F_303_nom=27.14, F_303_min=12.0, F_303_max=42.0,
+    )
+    cols = ("P_vac1_sp_bar", "P_vac2_sp_bar", "C_KNO3_in1_kg_m3", "C_KNO3_1_kg_m3", "C_KNO3_2_kg_m3")
+    for c in cols:
+        assert c in sost.columns and sost[c].notna().all()
+    assert sost["C_KNO3_in1_kg_m3"].mean() > pfd["C_KNO3_in1_kg_m3"].mean()
+    assert sost["d50_2_um"].iloc[-1] > pfd["d50_2_um"].iloc[-1]

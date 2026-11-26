@@ -1,19 +1,20 @@
 # Decisiones de Diseño de Control y Pendientes de Planta (NPT-3, SQM)
 
-Última actualización: 2026-11-25. Fuente de lo confirmado: planos P&ID GEA/ABB 172164, reuniones del equipo y validación sobre campañas SQM (`115 passed, 2 skipped` en `pytest`). Lo no confirmado con ingeniería de SQM se mantiene declarado como supuesto.
+Última actualización: 2026-11-25. Fuente de lo confirmado: planos P&ID GEA/ABB 172164, reuniones del equipo y validación sobre campañas SQM (`117 passed, 2 skipped` en `pytest`). Lo no confirmado con ingeniería de SQM se mantiene declarado como supuesto.
 
 ---
 
 ## 1. Decisiones Técnicas Adoptadas (Arquitectura Oficial)
 
 * **Dilución ambientalmente sostenible (`AIT 3105 → FFIC 3102 → FIRC 3103 / FV 3103`):**
-  * **Flujo óptimo propuesto:** consigna base **$0{,}50\text{ t/h}$** ($R_0 = 0{,}50 / 243{,}20 = 0{,}002056$), banda operativa acotada **$[0{,}20,\; 2{,}50]\text{ t/h}$** y caudal promedio real bajo perturbaciones de **$0{,}67\text{–}0{,}98\text{ t/h}$** (ahorro $>95\%$ frente a los $19{,}96\text{ t/h}$ reales de planta y $27{,}14\text{ t/h}$ de diseño PFD).
+  * **Consigna propuesta (hipótesis de diseño, NO validada en planta):** consigna base **$0{,}50\text{ t/h}$** ($R_0 = 0{,}50 / 243{,}20 = 0{,}002056$), banda operativa acotada **$[0{,}20,\; 2{,}50]\text{ t/h}$** y caudal promedio real bajo perturbaciones de **$0{,}67\text{–}0{,}98\text{ t/h}$** (ahorro $>95\%$ frente a los $19{,}96\text{ t/h}$ reales de planta y $27{,}14\text{ t/h}$ de diseño PFD).
   * Incorpora compensador dinámico *Lead-Lag* (`LeadLagCompensator`), selector **Override de sobresaturación $\text{KNO}_3$** ($\sigma_{\min} = 0{,}02$) y restricción dura de saturación de $\text{KClO}_4$ calibrada (`dilution_kclo4_hard_constraint`, $\ln\Gamma_{\text{KClO}_4,0} = 1{,}571$, $T_{\text{sat}} = 41{,}29\text{ }^\circ\text{C}$).
+  * **Estado de validación:** el "óptimo" depende del modelo y del escenario (6.7: $\geq 22\text{ t/h}$ con $\text{ClO}_4^-$ +550 ppm y $\geq 44\text{ t/h}$ con $\text{Mg}^{2+}$ +35 %; Paso 10: $32\text{–}34\text{ t/h}$). El replay que sustenta $0{,}50\text{ t/h}$ no cierra balance de agua y su *baseline* detecta solo el $20\%$ de las excedencias reales. Ver `docs/revision_dilucion_optima.md` y `docs/diagnostico_replay.md`.
   * *(Nota: el barrido histórico de $[12, 42]\text{ t/h}$ y el antiguo $F_{303}^* = 36{,}8\text{ t/h}$ corresponden a iteraciones previas sin tope ambiental y quedan solo como anexo de referencia).*
 * **Purga modulante continua post-`B3520` (`AIC 3522 → FIC 3522 → FV 3522`):**
   * Reemplaza la purga *on/off* actual por una válvula rotatoria bola *V-port* de igual porcentaje ($18\text{–}65\text{ m}^3/\text{h}$, posición `FO` + enclavamiento `LSL` en `B3520` + *Double Block & Bleed*).
   * **Realimentación sin CAPEX de analizador en línea:** alimentada con la **cromatografía iónica (CI) de laboratorio cada $2\text{ h}$** vía LIMS → DCS (aprovechando la constante de tiempo dominante $\tau \approx 2{,}2\text{ h}$ del circuito).
-  * Justificación multivariable: con cierre de volumen por dilución (`volume_closure="Q_dil"`), $\lambda(\text{ppm}, Q_{\text{purge}}) = 1{,}002$ (lazo de calidad independiente de $T$ y $\rho$, diseñable como SISO).
+  * Justificación multivariable: con cierre de volumen por dilución (`volume_closure="Q_dil"`), $\lambda(\text{ppm}, Q_{\text{purge}}) = 1{,}002$ (lazo de calidad independiente de $T$ y $\rho$, diseñable como SISO). **Límite:** `Q_out` carece de autoridad sobre la densidad en este modelo, así que el emparejamiento del bloque $T/\rho$ (vacío–descarga) queda pendiente de un modelo con descarga de cristales explícita.
 * **Control de Temperatura vía Vacío (`TIR 3101/3201 → PIRCAL 3101/3201`):**
   * Presión de vacío modulada en $[-0{,}920, -0{,}870]\text{ bar man.}$ (`A3110`) y $[-0{,}975, -0{,}940]\text{ bar man.}$ (`A3210`) con sintonía amortiguada **Tyreus–Luyben** (descarta Ziegler–Nichols y evita ciclos límite de Hopf), ponderación 2-DOF ($\beta = 0{,}5$), anti-windup por retrocálculo y *trim* térmico suave en `A3210` ($43{,}0\text{–}44{,}3\text{ }^\circ\text{C}$ en campaña SQM).
 * **Control de Inventario y Densidad (`LIRCSAHL`, `DIRCAHL → FIRCAL → SIC`):**

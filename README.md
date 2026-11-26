@@ -1,7 +1,9 @@
 # Control PID y Estrategia *Plantwide* — Cristalizadores de $\text{KNO}_3$ (Planta NPT-3, SQM)
 
 > **Rama:** `PID` | **Alcance:** Tren Integrado **Área 2000 (`B2510`) → Área 3000 (`A3110 / A3210 / B3520`) → Área 6000 (Refinación)**  
-> **Estado de validación:** `115 passed, 2 skipped` (`pytest tests/`)
+> **Estado de validación:** `117 passed, 2 skipped` (`pytest tests/`)
+
+> **Resultados y estado de validación:** ver `docs/tabla_resultados.md` (tabla para presentar) y `docs/PLAN_ENTREGA_FINAL.md` (qué corregir, qué debe resolver SQM y qué no alcanza antes del 7-dic).
 
 ---
 
@@ -20,8 +22,8 @@
 
 Este repositorio contiene el modelo fenomenológico (`msmpr_core`), los controladores regulatorios/supervisores y los cuadernos de validación dinámica para los cristalizadores evaporativos al vacío **A3110** y **A3210** de la planta NPT-3 de SQM, con el objetivo de mantener el producto refinado final **$< 40\text{ ppm}$ de $\text{ClO}_4^-$** bajo una estrategia hídricamente sostenible:
 
-* **Reducción drástica de agua de dilución (`FIRC 3103`):** Transición desde el diseño histórico ($27{,}14\text{ t/h}$; $19{,}96\text{ t/h}$ medidos en planta) hacia un régimen sostenible de **$0{,}50\text{ t/h}$ nominales** (promedio **$0{,}67\text{ t/h}$** en simulación calibrada, ahorro de **$97{,}5\%$** vs. diseño y **$96{,}6\%$** vs. operación real), manteniendo el pico en Área 6000 en **$22{,}65\text{ ppm}$**.
-* **Control *plantwide* de purga (`AIC 3522 → FV 3522`):** En `A3110` aislado con volumen $V$ fijo, `alpha` carece de autoridad porque el caudal de purga queda fijado por el balance de volumen (`control.mv_authority`, por lo que $NI = -610{,}09$ no es interpretable). Al evaluar la RGA con cierre de volumen por dilución (`volume_closure="Q_dil"`), resulta **$\lambda(\text{ppm}, Q_{\text{purge}}) = 1{,}002$** (lazo de calidad desacoplado de $T$ y $\rho$, diseñable como SISO), complementado por los sub-bloques regulatorios $2\times 2$ en `A3110` ($NI = +0{,}803$ y $+1{,}060$) y el modelo acoplado de `B3520`.
+* **Reducción drástica de agua de dilución (`FIRC 3103`) — HIPÓTESIS DE DISEÑO, NO VALIDADA EN PLANTA:** Transición desde el diseño histórico ($27{,}14\text{ t/h}$; $19{,}96\text{ t/h}$ medidos en planta) hacia un régimen sostenible de **$0{,}50\text{ t/h}$ nominales** (promedio **$0{,}67\text{ t/h}$** en simulación calibrada, ahorro de **$97{,}5\%$** vs. diseño y **$96{,}6\%$** vs. operación real), manteniendo el pico en Área 6000 en **$22{,}65\text{ ppm}$ *en simulación***. Estos números provienen de un replay sin balance de agua cerrado, con coeficientes *placeholder* y un piso de 20 ppm impuesto; los modelos acoplados del NB06 (6.7 y Paso 10) requieren entre $22$ y $44\text{ t/h}$ según el escenario. Ver `docs/revision_dilucion_optima.md`.
+* **Control de purga (`AIC 3522 → FV 3522`):** En `A3110` aislado con volumen $V$ fijo, `alpha` carece de autoridad porque el caudal de purga queda fijado por el balance de volumen (`control.mv_authority`, por lo que $NI = -610{,}09$ no es interpretable). Al evaluar la RGA con cierre de volumen por dilución (`volume_closure="Q_dil"`), resulta **$\lambda(\text{ppm}, Q_{\text{purge}}) = 1{,}002$** (lazo de calidad desacoplado de $T$ y $\rho$, diseñable como SISO), complementado por los sub-bloques regulatorios $2\times 2$ en `A3110` ($NI = +0{,}803$ y $+1{,}060$) y el modelo acoplado de `B3520`. **Límite:** en ese modelo `Q_out` no tiene autoridad sobre la densidad, por lo que el bloque $T/\rho$ de la RGA no es evaluable; solo el par ppm–`Q_purge` quedó resuelto.
 * **Evaluación contrafactual sobre campañas SQM (`msmpr_core/replay.py` y `docs/diagnostico_replay.md`):** En simulación con parámetros *placeholder* sobre 4 días (`10–15 nov 2026`, sensores reales cada 10 min) y 30 días, la estrategia con muestreo de laboratorio c/2 h arroja $0{,}0\%$ de excedencias simuladas ($\text{máx } 23{,}7\text{ ppm}$ en 4 d; $27{,}4\text{ ppm}$ en 30 d) y $-95{,}1\%$ de agua de dilución. **Limitación empírica verificada ($n = 6\,966$ muestras reales):** el *baseline* de 4 días alcanza $r = 0{,}26$, $\text{RMSE} = 22{,}45\text{ ppm}$ y sensibilidad $0{,}20$ ($3/15$ excedencias); el predictor empírico dominante de refinado $> 40\text{ ppm}$ es el $\text{KClO}_4$ del **ML de Refinación (Área 6000)** (Spearman $0{,}52$, AUC $= 0{,}74$, límite interno $\approx 3{,}1\text{ g/L}$), mientras que `MLK → crudo → refinado` no muestra respaldo empírico directo (Spearman $0{,}025$, AUC $= 0{,}47$). Por tanto, el "$0{,}0\%$" es una propiedad del modelo contrafactual, no una predicción validada de planta, y se recomienda extender el monitoreo/control de $\text{KClO}_4$ al Área 6000.
 * **Módulos avanzados incorporados:** Compensador dinámico *Lead-Lag* (`LeadLagCompensator`), selector *Override* de sobresaturación (`supersaturation_override_limit`), cinética de disolución en subsaturación (`dpbe.dissolution_rate_m_s`) y acoplamiento $\text{Mg}^{2+}\text{–ClO}_4^-$ (`magnesium_perchlorate_coupling`).
 
@@ -70,7 +72,7 @@ Este repositorio contiene el modelo fenomenológico (`msmpr_core`), los controla
   3. `06_Control_por_etapas_dilucion.ipynb`: Cierre escalonado `FIRC 3103 → FFIC 3102 → AIT 3105 + AIC 3522`, reciclo/magnesio y *replay* de la campaña real SQM.
 * **`docs/`**: Documentación técnica (`control_PID_P&ID.md`, `ROADMAP_control_por_etapas.md`, `diagnostico_replay.md`) y figuras exportadas (`docs/fig/`).
 * **`scripts/`**: Diagnóstico empírico del *replay* sobre la base histórica real (`scripts/diagnostico_replay.py`).
-* **`tests/`**: Suite de validación automatizada (`115 passed, 2 skipped`).
+* **`tests/`**: Suite de validación automatizada (`117 passed, 2 skipped`).
 
 ---
 
@@ -80,7 +82,7 @@ Este repositorio contiene el modelo fenomenológico (`msmpr_core`), los controla
 # 1. Instalar dependencias
 pip install -r requirements.txt
 
-# 2. Ejecutar toda la suite de pruebas unitarias (115 passed, 2 skipped)
+# 2. Ejecutar toda la suite de pruebas unitarias (117 passed, 2 skipped)
 python3 -m pytest tests/ -v
 
 # 3. Verificar régimen sostenible (0.50 t/h nominal) en el tren acoplado NPT-3

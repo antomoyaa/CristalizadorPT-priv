@@ -10,8 +10,8 @@ Regla: **un lazo nuevo por etapa; antes de cerrarlo, reidentificar el proceso co
 | 2 | FFIC 3102 (razón dilución/alimentación) | La consigna de FIRC 3103 pasa a ser R × caudal de alimentación; la dilución sigue las variaciones de alimentación | la razón dilución/alimentación se mantiene dentro de 2 % ante +12 % de alimentación | hecho (`test_ratio_mode_*`, notebook 05) |
 | 2b | AIT 3105 (ClO4 de entrada) | Ley de razón sobre el ClO4 medido, con ganancia y límites; barrer el retardo del analizador (aún sin definir) | ppm del pulso y recuperación mínima aceptables para la ganancia y el retardo definidos | hecho en simulación (`test_ait_*`); falta definir retardo, ganancia y capacidad de la válvula |
 | 3 | nivel (LIRCSAHL 3101) | La dilución agrega volumen: cerrar V y reidentificar el maestro | V dentro de ±1 % ante el escalón de dilución | implementado en A3110 (`plant.py`) y en el tren integrado A3110/A3210 (cascada DIC -> LIC, `test_nivel_*`); falta reidentificar con datos de planta |
-| 4 | T/vacío (PIRCSAHL 3101) | Calcular la matriz de ganancias y la RGA de los pares candidatos antes de cerrar | pareamiento justificado; sin interacción destructiva | hecho en simulación (`volume_closure='Q_dil'`, $\lambda=1{,}002$ y sub-bloques $2\times 2$; ver Etapa 4 abajo) |
-| 5 | ppm de ClO4 (propuesto) y prealimentación | Retardo de laboratorio (muestreo 2 h, entrega 1 h); prealimentación con Q_stock, T_feed y ClO4 de alimentación | pico de ppm menor sin saturar la dilución | hecho en simulación (*Lead-Lag*, *Override* $\text{KNO}_3$, restricción dura $\text{KClO}_4$ y `AIC 3522`; ver Etapa 5 abajo) |
+| 4 | T/vacío (PIRCSAHL 3101) | Calcular la matriz de ganancias y la RGA de los pares candidatos antes de cerrar | pareamiento justificado; sin interacción destructiva | parcial: par ppm–`Q_purge` resuelto ($\lambda=1{,}002$, `volume_closure='Q_dil'`); bloque $T/\rho$ no evaluable (`Q_out` sin autoridad sobre $\rho$); ver Etapa 4 abajo |
+| 5 | ppm de ClO4 (propuesto) y prealimentación | Retardo de laboratorio (muestreo 2 h, entrega 1 h); prealimentación con Q_stock, T_feed y ClO4 de alimentación | pico de ppm menor sin saturar la dilución | hecho en simulación con parámetros *placeholder* (*Lead-Lag*, *Override* $\text{KNO}_3$, restricción dura $\text{KClO}_4$ y `AIC 3522`); sin validación empírica; ver Etapa 5 abajo |
 | 6 | opcional | MPC/NMPC (do-mpc en `examples/two_stage_msmpr`) con el modelo calibrado | mejora frente a PID con las mismas perturbaciones | pendiente |
 
 ## Al activar un lazo en la planta real o en simulación
@@ -53,7 +53,7 @@ Como el volumen del cristalizador ($V$) es un proceso integrador sin estado esta
 
 ## Etapa 5 — Prealimentación Dinámica, *Override* de Sobresaturación y Régimen Sostenible (`COMPLETADO`)
 
-Implementado en `msmpr_core/control.py`, `msmpr_core/dpbe.py`, `msmpr_core/plant.py`, `msmpr_core/params.py` y `msmpr_core/replay.py` (**115 tests unitarios en verde**):
+Implementado en `msmpr_core/control.py`, `msmpr_core/dpbe.py`, `msmpr_core/plant.py`, `msmpr_core/params.py` y `msmpr_core/replay.py` (**117 tests unitarios en verde**):
 
 1. **Compensador *Lead-Lag* (`LeadLagCompensator`):** Discretización implícita incondicionalmente estable para sincronizar la acción anticipativa de `AIT 3105 → FFIC 3102` con el tiempo de residencia hidráulico entre `B2510` y `A3110`.
 2. **Selector *Override* de Sobresaturación (`supersaturation_override_limit`):** Límite superior $R_{\max,\sigma}$ en `FFIC 3102` que garantiza $C_{\text{mix}} = C_{\text{in}}/(1+R) \ge (1+\sigma_{\min})C^*$, evitando la redisolución del lecho cristalino y derivando el exceso de carga de $\text{ClO}_4^-$ hacia `AIC 3522 → FV 3522`.
