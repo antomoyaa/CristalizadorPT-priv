@@ -361,6 +361,10 @@ def simulate_plant_npt3_calibrated(
     T2_sp_C=40.0,             # Consigna maestra A3210 [°C]
     use_slave_PIRCAL=False,   # False por defecto para no alterar Kcu/tests existentes; True al simular el esclavo rápido
     vac_dist_bar=0.0,         # Perturbación externa de vacío (ej. +0.008 bar en eyectores/condensador)
+    C_ClO4_sp_g_L=4.00,       # Consigna de perclorato en B3520 (AIC 3522) [g/L]
+    alpha_nom=0.22,           # Fracción de purga nominal / bias (1 - R_nom)
+    alpha_min=0.08,           # Límite inferior de fracción de purga
+    alpha_max=0.65,           # Límite superior de fracción de purga
     *,
     use_AIC3255=None,  # alias DEPRECADO de use_AIC3522 (tag antiguo)
 ):
@@ -416,7 +420,12 @@ def simulate_plant_npt3_calibrated(
     Kc_T = Kc_T if Kc_T_override is None else Kc_T_override
     tauI_T = tauI_T if tauI_T_override is None else tauI_T_override
     tauD_T = tauD_T if tauD_T_override is None else tauD_T_override
-    lim1, lim2 = (VAC["P1_lim"], VAC["P2_lim"]) if vac_limits_override is None else (vac_limits_override, vac_limits_override)
+    if vac_limits_override is None:
+        lim1, lim2 = VAC["P1_lim"], VAC["P2_lim"]
+    elif isinstance(vac_limits_override[0], (tuple, list)):
+        lim1, lim2 = tuple(vac_limits_override[0]), tuple(vac_limits_override[1])
+    else:
+        lim1, lim2 = vac_limits_override, vac_limits_override
     # Cascada DIC (densidad, maestro lento) -> LIC (nivel, esclavo rapido) -> caudal de descarga (SIC 3101/3201).
     # El maestro de densidad ya no manda el caudal: ajusta la consigna de nivel (retencion) dentro de LEVEL["L_sp_lim"].
     # La severidad del modo (ZN / Hopf) se conserva escalando su ganancia respecto de la sintonia amortiguada (-650).
@@ -433,16 +442,18 @@ def simulate_plant_npt3_calibrated(
     pid_LIC2 = CommercialPID(kc_L2, ti_L, 0.0, 1.0, LEVEL["F_nom"], 250.0, 520.0)
     sens_LIC1 = DiscreteFilteredSensor(0.20, 0.20, dt_min, 1.0)
     sens_LIC2 = DiscreteFilteredSensor(0.20, 0.20, dt_min, 1.0)
-    pid_AIC3522 = CommercialPID(-0.48 if is_osc else -0.28, 18.0 if is_osc else 45.0, 0.0, 4.00, 0.22, 0.08, 0.65)
+    pid_AIC3522 = CommercialPID(-0.48 if is_osc else -0.28, 18.0 if is_osc else 45.0, 0.0, C_ClO4_sp_g_L, alpha_nom, alpha_min, alpha_max)
     pid_FIRC3103 = CommercialPID(Kc=1.25, tau_I=0.45, tau_D=0.0, sp=F_303_nom, u_bias=F_303_nom, u_min=F_303_min, u_max=F_303_max)
 
     pid_TP1 = CommercialPID(Kc_T * VAC["Kc_scale1"], tauI_T, tauD_T, T1_sp_C, VAC["P1_nom"], *lim1)
     pid_TP2 = CommercialPID(Kc_T * VAC["Kc_scale2"], tauI_T, tauD_T, T2_sp_C, VAC["P2_nom"], *lim2)
 
     # Lazos esclavos rápidos de presión (PIRCAL 3101 y PIRCAL 3201, existentes en planta)
-    P_vac1, P_vac2 = VAC["P1_nom"], VAC["P2_nom"]
-    pid_PIR1 = CommercialPID(Kc=1.8, tau_I=0.35, tau_D=0.0, sp=VAC["P1_nom"], u_bias=VAC["P1_nom"], u_min=lim1[0], u_max=lim1[1])
-    pid_PIR2 = CommercialPID(Kc=1.8, tau_I=0.35, tau_D=0.0, sp=VAC["P2_nom"], u_bias=VAC["P2_nom"], u_min=lim2[0], u_max=lim2[1])
+    P1_sp_manual = float(np.clip(vac_P(T1_sp_C, 1), lim1[0], lim1[1]))
+    P2_sp_manual = float(np.clip(vac_P(T2_sp_C, 2), lim2[0], lim2[1]))
+    P_vac1, P_vac2 = P1_sp_manual, P2_sp_manual
+    pid_PIR1 = CommercialPID(Kc=1.8, tau_I=0.35, tau_D=0.0, sp=P1_sp_manual, u_bias=P1_sp_manual, u_min=lim1[0], u_max=lim1[1])
+    pid_PIR2 = CommercialPID(Kc=1.8, tau_I=0.35, tau_D=0.0, sp=P2_sp_manual, u_bias=P2_sp_manual, u_min=lim2[0], u_max=lim2[1])
 
     C_KNO3_in1 = _C_in1(F_PRE_NOM, F_303_nom)
     C_KNO3_1 = C_KNO3_2 = float("nan")
@@ -484,8 +495,8 @@ def simulate_plant_npt3_calibrated(
             P_vac2_sp = pid_TP2.step(sens_TIR3201.read(T2), dt_min)
         else:
             # Operación actual sin automatizar: operador deja fija la consigna de vacío en PIRCAL
-            P_vac1_sp = VAC["P1_nom"]
-            P_vac2_sp = VAC["P2_nom"]
+            P_vac1_sp = P1_sp_manual
+            P_vac2_sp = P2_sp_manual
 
         dP_ext = vac_dist_bar if 60.0 <= t < 180.0 else 0.0   # Perturbación de vacío (ej. falla de condensador/eyector)
         if use_slave_PIRCAL:
@@ -503,7 +514,7 @@ def simulate_plant_npt3_calibrated(
         M1 += (F_1 - F_VAPOR_A3110 - F_PERDIDAS_A3110 - F_6) * dt_min / 60.0
         M2 += (F_6 - F_11) * dt_min / 60.0
         L1, L2 = M1 / M1_nom, M2 / M2_nom
-        alpha_purge = pid_AIC3522.step(sens_AIC3522.read(C_ClO4_B3520), dt_min) if use_AIC3522 else 0.22
+        alpha_purge = pid_AIC3522.step(sens_AIC3522.read(C_ClO4_B3520), dt_min) if use_AIC3522 else alpha_nom
 
         T1_eq = vac_T(P_vac1, 1) + 0.45 * (T_in_1 - 70.0)
         T2_eq = vac_T(P_vac2, 2) + 0.40 * (T1 - 55.0) + (1.1 if t >= 25.0 else 0.0)
@@ -1197,3 +1208,171 @@ def magnesium_perchlorate_coupling(C_Mg_g_L, G_m_s, d50_um, p, C_Mg_ref=31.7):
         "Kd_eff": Kd_eff,
         "w_moist_eff": w_moist_eff,
     }
+
+
+# === INTERFAZ MODELO DPBE·MSMPR (VENTANA DE OPERACIÓN) -> CONTROL PID ===
+
+VENTANA_OPERACION_DEFAULT = {
+    "temp_cascade": False,          # Desactivada por defecto; disponible si se decide usar más adelante
+    "use_slave_PIRCAL": True,
+    "use_AIT3105": True,
+    "use_AIC3522": True,
+    "T1_sp_C": 55.0,
+    "T2_sp_C": 40.0,
+    "T1_range_C": [52.0, 58.0],
+    "T2_range_C": [38.0, 44.0],
+    "D_nom_t_h": 12.0,
+    "D_min_t_h": 5.0,
+    "D_max_t_h": 27.14,
+    "R_nom": 0.86,
+    "alpha_nom": 0.14,
+    "alpha_min": 0.08,
+    "alpha_max": 0.35,
+    "C_ClO4_sp_g_L": 4.00,
+    "C_ClO4_sat_g_L": 4.50,
+    "ClO4_max_ppm": 40.0,
+    "d50_obj_um": 514.0,
+    "d50_min_um": 420.0,
+    "sigma_KNO3_min": 0.02,
+    "B3520_V_m3": 150.0,
+    "B3520_Q_tot_m3_h": 85.0,       # Caudal total reciclo+purga en B3520 (consistente con §6.7)
+    "B3520_L0_pct": 65.0,
+    "B3520_LSL_pct": 20.0,
+    "agua_real_ref_t_h": 19.96,
+}
+
+
+def cargar_ventana_operacion(ruta=None) -> dict:
+    """Carga el contrato de ventana operacional (JSON) emitido por el modelo DPBE·MSMPR."""
+    import json
+    from pathlib import Path
+
+    if isinstance(ruta, dict):
+        return {**VENTANA_OPERACION_DEFAULT, **ruta}
+    p = Path(ruta) if ruta is not None else Path(__file__).resolve().parents[1] / "config" / "ventana_operacion.json"
+    if p.exists():
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return {**VENTANA_OPERACION_DEFAULT, **data}
+    return dict(VENTANA_OPERACION_DEFAULT)
+
+
+def simular_desde_ventana_operacion(
+    ventana=None,
+    *,
+    duration_min: float = 300.0,
+    dt_min: float = 0.05,
+    vac_dist_bar: float = 0.0,
+    temp_cascade: bool | None = None,
+    use_AIT3105: bool | None = None,
+    use_AIC3522: bool | None = None,
+    use_slave_PIRCAL: bool | None = None,
+    tuning_mode: str = "TL_damped",
+):
+    """Conecta la Ventana de Operación (DPBE·MSMPR) con los lazos de control PID y verifica KPIs.
+
+    Mantiene `temp_cascade=False` por defecto (consigna fija de vacío en PIRCAL derivada de
+    `T1_sp_C` y `T2_sp_C` vía `vac_P`). La cascada `TIR -> PIRCAL` permanece disponible activando
+    `temp_cascade=True`.
+    """
+    v = cargar_ventana_operacion(ventana)
+    if isinstance(ventana, dict) and "R_nom" in ventana and "alpha_nom" not in ventana:
+        alpha_nom = float(np.clip(1.0 - float(ventana["R_nom"]), 0.05, 0.95))
+    else:
+        alpha_nom = float(v["alpha_nom"])
+    alpha_min = float(v["alpha_min"])
+    alpha_max = float(v["alpha_max"])
+
+    T1_lo, T1_hi = float(v["T1_range_C"][0]), float(v["T1_range_C"][1])
+    T2_lo, T2_hi = float(v["T2_range_C"][0]), float(v["T2_range_C"][1])
+    lim1 = (float(vac_P(T1_lo, 1)), float(vac_P(T1_hi, 1)))
+    lim2 = (float(vac_P(T2_lo, 2)), float(vac_P(T2_hi, 2)))
+
+    tc_flag = bool(v.get("temp_cascade", False)) if temp_cascade is None else bool(temp_cascade)
+    ait_flag = bool(v.get("use_AIT3105", True)) if use_AIT3105 is None else bool(use_AIT3105)
+    aic_flag = bool(v.get("use_AIC3522", True)) if use_AIC3522 is None else bool(use_AIC3522)
+    pir_flag = bool(v.get("use_slave_PIRCAL", True)) if use_slave_PIRCAL is None else bool(use_slave_PIRCAL)
+
+    df = simulate_plant_npt3_calibrated(
+        use_AIT3105=ait_flag,
+        use_AIC3522=aic_flag,
+        tuning_mode=tuning_mode,
+        duration_min=duration_min,
+        dt_min=dt_min,
+        vac_limits_override=(lim1, lim2),
+        F_303_nom=float(v["D_nom_t_h"]),
+        F_303_min=float(v["D_min_t_h"]),
+        F_303_max=float(v["D_max_t_h"]),
+        temp_cascade=tc_flag,
+        T1_sp_C=float(v["T1_sp_C"]),
+        T2_sp_C=float(v["T2_sp_C"]),
+        use_slave_PIRCAL=pir_flag,
+        vac_dist_bar=vac_dist_bar,
+        C_ClO4_sp_g_L=float(v["C_ClO4_sp_g_L"]),
+        alpha_nom=alpha_nom,
+        alpha_min=alpha_min,
+        alpha_max=alpha_max,
+    )
+
+    # Verificación hidráulica de inventario en B3520 (LSL = 20 %)
+    V_tank = float(v["B3520_V_m3"])
+    Q_tot = float(v.get("B3520_Q_tot_m3_h", 85.0))
+    L_lsl = float(v["B3520_LSL_pct"]) / 100.0
+    V = (float(v["B3520_L0_pct"]) / 100.0) * V_tank
+    V_min = L_lsl * V_tank
+    V_max = 0.90 * V_tank
+    dt_h = dt_min / 60.0
+    Q_in_sin_dil = 22.0 - 19.96  # equilibrio base SQM: 19,96 t/h dilución <-> 22,0 m³/h purga
+    lvl_b3520 = np.empty(len(df), dtype=float)
+    in_lsl = 0
+    for i, (f303, a_pct) in enumerate(zip(df["F_303_actual_t_h"].values, df["alpha_purge_pct"].values)):
+        q_in = Q_in_sin_dil + float(f303)
+        q_cmd = Q_tot * (float(a_pct) / 100.0)
+        q_safe = max(q_in + (V - V_min) / dt_h, 0.0)
+        if q_cmd > q_safe + 1e-9:
+            q_eff = q_safe
+            in_lsl += 1
+        else:
+            q_eff = q_cmd
+        V = float(np.clip(V + (q_in - q_eff) * dt_h, V_min, V_max))
+        lvl_b3520[i] = 100.0 * V / V_tank
+    df["level_B3520_pct"] = lvl_b3520
+
+    clo4_lim = float(v["ClO4_max_ppm"])
+    d50_min_req = float(v["d50_min_um"])
+    agua_ref = float(v["agua_real_ref_t_h"])
+    agua_media = float(df["F_303_actual_t_h"].mean())
+    pct_t1_ok = 100.0 * float(((df["T1_C"] >= T1_lo) & (df["T1_C"] <= T1_hi)).mean())
+    pct_t2_ok = 100.0 * float(((df["T2_C"] >= T2_lo) & (df["T2_C"] <= T2_hi)).mean())
+    pct_clo4_ok = 100.0 * float((df["ppm_ClO4_final_6000"] <= clo4_lim).mean())
+    d50_min_obs = float(df["d50_2_um"].min())
+    lvl_min_obs = float(lvl_b3520.min())
+    pct_lsl = 100.0 * in_lsl / max(len(df), 1)
+
+    resumen = {
+        "temp_cascade_activa": tc_flag,
+        "P_vac1_lim_bar": (round(lim1[0], 5), round(lim1[1], 5)),
+        "P_vac2_lim_bar": (round(lim2[0], 5), round(lim2[1], 5)),
+        "T1_end_C": round(float(df["T1_C"].iloc[-1]), 2),
+        "T2_end_C": round(float(df["T2_C"].iloc[-1]), 2),
+        "pct_tiempo_T1_en_rango": round(pct_t1_ok, 1),
+        "pct_tiempo_T2_en_rango": round(pct_t2_ok, 1),
+        "ppm_ClO4_max_6000": round(float(df["ppm_ClO4_final_6000"].max()), 2),
+        "pct_tiempo_ClO4_ok": round(pct_clo4_ok, 1),
+        "d50_2_min_um": round(d50_min_obs, 1),
+        "d50_2_end_um": round(float(df["d50_2_um"].iloc[-1]), 1),
+        "cumple_d50_min": bool(d50_min_obs >= d50_min_req),
+        "agua_media_t_h": round(agua_media, 2),
+        "ahorro_agua_vs_real_pct": round(100.0 * (agua_ref - agua_media) / agua_ref, 1),
+        "ahorro_agua_vs_pfd_pct": round(100.0 * (F303_NOM - agua_media) / F303_NOM, 1),
+        "alpha_media_pct": round(float(df["alpha_purge_pct"].mean()), 2),
+        "nivel_min_B3520_pct": round(lvl_min_obs, 1),
+        "pct_tiempo_LSL_B3520": round(pct_lsl, 1),
+        "cumple_ventana_global": bool(
+            pct_clo4_ok == 100.0
+            and d50_min_obs >= d50_min_req
+            and pct_t1_ok == 100.0
+            and pct_t2_ok == 100.0
+            and pct_lsl == 0.0
+        ),
+    }
+    return df, resumen
