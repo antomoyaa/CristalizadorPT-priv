@@ -379,7 +379,7 @@ def simulate_plant_npt3_calibrated(
     n_steps = int(duration_min / dt_min)
     w_ClO4_pre = PFD_MG_CLO4["w_ClO4_pre_nom_ppm"]
     w_Mg_pre = PFD_MG_CLO4["w_Mg_pre_nom_ppm"]
-    T1, T2 = 55.0, 40.0
+    T1, T2 = float(T1_sp_C), float(T2_sp_C)
     v_T1, v_T2 = 0.0, 0.0
     xS1, xS2 = 0.130, 0.200
     D50_1N, D50_2N = GRANULO["D50_nom1_um"], GRANULO["D50_nom2_um"]
@@ -517,7 +517,7 @@ def simulate_plant_npt3_calibrated(
         alpha_purge = pid_AIC3522.step(sens_AIC3522.read(C_ClO4_B3520), dt_min) if use_AIC3522 else alpha_nom
 
         T1_eq = vac_T(P_vac1, 1) + 0.45 * (T_in_1 - 70.0)
-        T2_eq = vac_T(P_vac2, 2) + 0.40 * (T1 - 55.0) + (1.1 if t >= 25.0 else 0.0)
+        T2_eq = vac_T(P_vac2, 2) + 0.40 * (T1 - T1_sp_C) + (1.1 if t >= 25.0 else 0.0)
         tau1_T, tau2_T = 4.5, 1.8
         v_T1 += ((T1_eq - T1 - (tau1_T + tau2_T) * v_T1) / (tau1_T * tau2_T)) * dt_min
         v_T2 += ((T2_eq - T2 - (tau1_T + tau2_T) * v_T2) / (tau1_T * tau2_T)) * dt_min

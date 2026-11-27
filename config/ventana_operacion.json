@@ -1,31 +1,31 @@
 {
-  "descripcion": "Contrato de interfaz entre el modelo DPBE·MSMPR (mapas T, D, R) y los lazos de control PID de NPT-3.",
-  "modo_operacion": "Fase 1 balanceada (cascada TIR->PIRCAL desactivada por defecto; disponible como opcion)",
+  "descripcion": "Setpoint recomendado por Modelo DPBE·MSMPR (Cristalizador_SQM.ipynb §9.5) conectado al Control PID NPT-3.",
+  "modo_operacion": "Setpoint DPBE·MSMPR (15 t/h, 60/42 °C; cascada TIR->PIRCAL desactivada por defecto, disponible como opcion)",
   "temp_cascade": false,
   "use_slave_PIRCAL": true,
   "use_AIT3105": true,
   "use_AIC3522": true,
-  "T1_sp_C": 55.0,
-  "T2_sp_C": 40.0,
+  "T1_sp_C": 60.0,
+  "T2_sp_C": 42.0,
   "T1_range_C": [
-    52.0,
-    58.0
+    57.0,
+    61.8
   ],
   "T2_range_C": [
-    38.0,
-    44.0
+    40.0,
+    45.0
   ],
-  "D_nom_t_h": 12.0,
+  "D_nom_t_h": 15.0,
   "D_min_t_h": 5.0,
   "D_max_t_h": 27.14,
-  "R_nom": 0.86,
-  "alpha_nom": 0.14,
+  "R_nom": 0.8,
+  "alpha_nom": 0.2,
   "alpha_min": 0.08,
   "alpha_max": 0.35,
   "C_ClO4_sp_g_L": 4.0,
   "C_ClO4_sat_g_L": 4.5,
   "ClO4_max_ppm": 40.0,
-  "d50_obj_um": 514.0,
+  "d50_obj_um": 557.0,
   "d50_min_um": 420.0,
   "sigma_KNO3_min": 0.02,
   "B3520_V_m3": 150.0,
