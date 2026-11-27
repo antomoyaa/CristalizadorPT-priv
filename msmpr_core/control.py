@@ -90,66 +90,71 @@ class SampledSensor:
         return self.value
 
 
-class DelayedSensor:
-    """Medición continua con tiempo muerto compatible con PlantController (2 args) y modelo NPT-3 (4 a 7 args).
+class ContinuousDelaySensor:
+    """Medición con tiempo muerto puro para `PlantController` (dinámica continua, tiempo en SEGUNDOS).
 
-    ATENCIÓN UNIDADES: en modo PlantController (2 args) `delay_s` está en SEGUNDOS y el 2º arg es el valor inicial.
-    En modo NPT-3 (si se pasa dt_min o initial_val) el 1er arg es el retardo en MINUTOS y el 2º es la constante de
-    tiempo del filtro en minutos (tau_m). Preferir argumentos con nombre. TODO: separar en dos clases.
+    ContinuousDelaySensor(delay_s, initial=0.0);  read(t, true_value) -> valor retardado.
     """
 
-    def __init__(
-        self,
-        delay_s: float,
-        initial: float = 0.0,
-        dt_min: float | None = None,
-        initial_val: float | None = None,
-        resolution: float = 0.0,
-        noise_std: float = 0.0,
-        seed: int = 42,
-    ):
-        if dt_min is None and initial_val is None:
-            # Modo original de PlantController: DelayedSensor(delay_s, initial)
-            self.delay = float(delay_s)
-            self.value = float(initial)
-            self._queue = deque()
-            self._npt3_mode = False
-        else:
-            # Modo discreto para modelo NPT-3: DelayedSensor(theta_min, tau_m_min, dt_min, initial_val, resolution, noise_std, seed)
-            theta_min = float(delay_s)
-            tau_m_min = float(initial)
-            self.delay_steps = max(int(round(theta_min / float(dt_min))), 1)
-            self.buffer = deque([initial_val] * self.delay_steps, maxlen=self.delay_steps)
-            self.tau_m = tau_m_min
-            self.dt = float(dt_min)
-            self.filtered_val = float(initial_val)
-            self.res = float(resolution)
-            self.noise_std = float(noise_std)
-            self.rng = np.random.default_rng(seed)
-            self._npt3_mode = True
+    def __init__(self, delay_s: float, initial: float = 0.0):
+        self.delay = float(delay_s)      # [s]
+        self.value = float(initial)
+        self._queue = deque()
 
-    def read(self, t_or_val, true_value=None):
-        if not self._npt3_mode and true_value is not None:
-            # Llamado por PlantController: sensor.read(t, true_value)
-            t = float(t_or_val)
-            self._queue.append((t + self.delay, true_value))
-            while self._queue and self._queue[0][0] <= t + 1e-9:
-                self.value = self._queue.popleft()[1]
-            return self.value
+    def read(self, t: float, true_value: float) -> float:
+        t = float(t)
+        self._queue.append((t + self.delay, true_value))
+        while self._queue and self._queue[0][0] <= t + 1e-9:
+            self.value = self._queue.popleft()[1]
+        return self.value
+
+
+class DiscreteFilteredSensor:
+    """Sensor discreto del modelo NPT-3: retardo + filtro de 1er orden + resolución + ruido. Tiempo en MINUTOS.
+
+    DiscreteFilteredSensor(theta_min, tau_m_min, dt_min, initial_val, resolution=0.0, noise_std=0.0, seed=42);
+    read(true_val) -> medición (retardada theta_min, filtrada con constante tau_m_min, cuantizada a `resolution`).
+    """
+
+    def __init__(self, theta_min: float, tau_m_min: float, dt_min: float, initial_val: float,
+                 resolution: float = 0.0, noise_std: float = 0.0, seed: int = 42):
+        self.delay_steps = max(int(round(float(theta_min) / float(dt_min))), 1)
+        self.buffer = deque([initial_val] * self.delay_steps, maxlen=self.delay_steps)
+        self.tau_m = float(tau_m_min)
+        self.dt = float(dt_min)
+        self.filtered_val = float(initial_val)
+        self.res = float(resolution)
+        self.noise_std = float(noise_std)
+        self.rng = np.random.default_rng(seed)
+
+    def read(self, true_val: float) -> float:
+        val = float(true_val)
+        if self.noise_std > 0.0:
+            val += float(self.rng.normal(0.0, self.noise_std))
+        self.buffer.append(val)
+        delayed = self.buffer[0]
+        if self.tau_m > 0.0:
+            self.filtered_val += (self.dt / self.tau_m) * (delayed - self.filtered_val)
         else:
-            # Llamado por modelo NPT-3: sensor.read(true_val)
-            val = float(t_or_val)
-            if self.noise_std > 0.0:
-                val += float(self.rng.normal(0.0, self.noise_std))
-            self.buffer.append(val)
-            delayed = self.buffer[0]
-            if self.tau_m > 0.0:
-                self.filtered_val += (self.dt / self.tau_m) * (delayed - self.filtered_val)
-            else:
-                self.filtered_val = delayed
-            if self.res > 0.0:
-                return round(self.filtered_val / self.res) * self.res
-            return self.filtered_val
+            self.filtered_val = delayed
+        if self.res > 0.0:
+            return round(self.filtered_val / self.res) * self.res
+        return self.filtered_val
+
+
+class DelayedSensor:
+    """DEPRECADO: usar `ContinuousDelaySensor` (segundos, 2 args) o `DiscreteFilteredSensor` (minutos, >=4 args).
+
+    Se mantiene solo por compatibilidad: según los argumentos devuelve una instancia de una de las dos clases anteriores.
+    """
+
+    def __new__(cls, delay_s, initial=0.0, dt_min=None, initial_val=None, resolution=0.0, noise_std=0.0, seed=42):
+        import warnings
+        warnings.warn("DelayedSensor está deprecado: usar ContinuousDelaySensor o DiscreteFilteredSensor",
+                      DeprecationWarning, stacklevel=2)
+        if dt_min is None and initial_val is None:
+            return ContinuousDelaySensor(delay_s, initial)
+        return DiscreteFilteredSensor(delay_s, initial, dt_min, initial_val, resolution, noise_std, seed)
 
 
 # ------------------------------------------------------------------ identificación y sintonía
@@ -239,7 +244,7 @@ class PlantController:
             self.ait = {"cp_true": ait["cp_true"], "R_min": ait.get("R_min", 0.0), "R_max": ait.get("R_max", 3.0 * ratio_nom),
                         "CP_target": ait.get("CP_target", cp_nom / (1.0 + ratio_nom)),
                         "noise": ait.get("noise_rel", 0.0), "gain": ait.get("gain", 1.0), "R_nom": ratio_nom,
-                        "sensor": DelayedSensor(ait.get("delay_s", 0.0), cp_nom)}
+                        "sensor": ContinuousDelaySensor(ait.get("delay_s", 0.0), cp_nom)}
             self.last_R = ratio_nom
         self.noise_rel = noise_rel or {}
         self.rng = np.random.default_rng(seed)
@@ -463,8 +468,34 @@ def sigma_ventana(df, col, t0_h=12.0):
     return float(np.std(y - np.polyval(np.polyfit(t, y, 1), t)))
 
 
-def routh_hopf_analysis(Kp, tau_p, theta, tau_I):
-    """Criterio de Routh-Hurwitz con Padé 1er orden y detección de Bifurcación de Hopf."""
+def ultimate_gain_exact(Kp, tau_p, theta, tau_I):
+    """Ganancia última Ku [1/|K| unidades] y periodo Pu del lazo PI + FOPDT con el RETARDO EXACTO e^{-theta s}.
+
+    Se busca el cruce de fase -180 grados de L(jw) = Kc*K*(1+1/(j w tau_I))*e^{-j w theta}/(j w tau_p + 1) con Kc = 1
+    y Ku = 1/|L| en ese punto (criterio de Nyquist). Sirve para contrastar el resultado de Padé de 1er orden de
+    `routh_hopf_analysis`, que NO es conservador (sobreestima Ku ~25 % para theta/tau_p ~ 0,2).
+    Devuelve (Ku, Pu) en las mismas unidades de tiempo de tau_p, theta y tau_I.
+    """
+    K_abs = abs(float(Kp))
+    th = max(float(theta), 1e-6)
+    w = np.logspace(-4, 3, 400000) / max(min(tau_p, tau_I, th), 1e-9)
+    L = K_abs * (1 + 1 / (1j * w * tau_I)) * np.exp(-1j * w * th) / (1j * w * tau_p + 1)
+    ph = np.unwrap(np.angle(L))
+    cross = np.where(np.diff(np.sign(ph + np.pi)))[0]
+    if len(cross) == 0:
+        return float("inf"), float("nan")
+    i = cross[0]
+    return float(1.0 / abs(L[i])), float(2 * np.pi / w[i])
+
+
+def routh_hopf_analysis(Kp, tau_p, theta, tau_I, with_exact=False):
+    """Criterio de Routh-Hurwitz con Padé 1er orden y detección de Bifurcación de Hopf.
+
+    ADVERTENCIAS: (i) Padé 1/1 sobreestima Ku (no conservador); con with_exact=True se agregan 'Ku_exact'/'Pu_exact'
+    (Nyquist con retardo real). (ii) Con theta ~ 0 el lazo PI+FOPDT es incondicionalmente estable: un theta efectivo
+    se debe ESTIMAR de la misma identificación (válvula + vacío + muestreo), no fijarse a mano. (iii) 'Kc_overshoot' es
+    una heurística (1/|K| como piso), no un límite derivado.
+    """
     theta_eff = max(float(theta), 1e-3)
     a0 = 0.5 * tau_p * tau_I * theta_eff
     K_abs = abs(Kp)
@@ -482,7 +513,12 @@ def routh_hopf_analysis(Kp, tau_p, theta, tau_I):
     tau_u = 2.0 * np.pi / omega_u
     Kc_overshoot = (1.0 / K_abs) * max((2.0 * tau_p / tau_I) - 1.0, 0.05)
     sgn = -1.0 if Kp < 0 else 1.0
+    extra = {}
+    if with_exact:
+        Ku_e, Pu_e = ultimate_gain_exact(Kp, tau_p, theta_eff, tau_I)
+        extra = {"Ku_exact": sgn * Ku_e, "Pu_exact": Pu_e, "padeover_pct": 100.0 * (Kc_hopf / Ku_e - 1.0)}
     return {
+        **extra,
         "Kc_overshoot": sgn * Kc_overshoot,
         "Kc_hopf": sgn * Kc_hopf,
         "omega_u": float(omega_u),
@@ -523,8 +559,283 @@ class CommercialPID:
             D = self.d_filt
         tentative_I = self.integral + (self.Kc / max(self.tau_I, 1e-6)) * error * dt if self.tau_I > 0 else 0.0
         u_unsat = self.u_bias + P + tentative_I + D
-        if self.u_min <= u_unsat <= self.u_max:
+        # Integración condicional: se congela SOLO si la integral empujaría más hacia la saturación activa; si el error
+        # ya la devuelve hacia el rango, se permite integrar (antes se congelaba siempre fuera de límites y podía
+        # quedar pegado en saturación).
+        pushing_out = (u_unsat > self.u_max and tentative_I > self.integral) or (u_unsat < self.u_min and tentative_I < self.integral)
+        if not pushing_out:
             self.integral = tentative_I
             self.I = tentative_I
         self.prev_pv = pv
         return float(np.clip(u_unsat, self.u_min, self.u_max))
+
+
+# ------------------------------------------------------------------------------
+# Control Multivariable y Prealimentación Avanzada (Etapas 4 y 5 del Roadmap)
+# ------------------------------------------------------------------------------
+def mv_authority(G, u0, y0, tol=1e-2):
+    """Sensibilidad relativa |dy/y| por |du/u| de cada par (CV_i, MV_j) y bandera de MV 'sin autoridad'.
+
+    Una columna cuya sensibilidad máxima es < tol (p. ej. alpha en `rga_from_plant` con volumen fijo: el caudal de
+    purga queda fijado por el balance de volumen) hace que G sea casi singular; RGA y NI resultantes NO son
+    interpretables. Devuelve (S, sin_autoridad) con S de forma (n_cv, n_mv) y sin_autoridad vector booleano por MV.
+    """
+    G = np.asarray(G, float)
+    S = np.abs(G) * np.abs(np.asarray(u0, float))[None, :] / np.maximum(np.abs(np.asarray(y0, float)), 1e-12)[:, None]
+    return S, S.max(axis=0) < tol
+
+
+def compute_rga(G):
+    """
+    Calcula la Matriz de Ganancias Relativas (RGA, Bristol 1966):
+        Lambda = G * (G^{-1})^T   (producto de Hadamard)
+    Equilibra filas y columnas antes de invertir (la RGA es invariante a escala),
+    evitando mal condicionamiento por diferencias de unidades (kg/s vs m3/s vs fraccion).
+    """
+    G_arr = np.asarray(G, dtype=float)
+    if G_arr.ndim != 2 or G_arr.shape[0] != G_arr.shape[1]:
+        raise ValueError("La matriz de ganancias G debe ser cuadrada (n x n).")
+    row_s = np.linalg.norm(G_arr, axis=1)
+    row_s = np.where(row_s > 1e-15, row_s, 1.0)
+    G_r = G_arr / row_s[:, None]
+    col_s = np.linalg.norm(G_r, axis=0)
+    col_s = np.where(col_s > 1e-15, col_s, 1.0)
+    G_eq = G_r / col_s[None, :]
+    cond = float(np.linalg.cond(G_eq))
+    G_inv = np.linalg.pinv(G_eq) if (not np.isfinite(cond) or cond > 1e12) else np.linalg.inv(G_eq)
+    return G_eq * G_inv.T
+
+
+def rga_from_plant(plant, x0, u0, d0,
+                   mv_names=("m_evap", "Q_dil_cmd", "alpha"),
+                   cv_names=("T_C", "slurry_density_kg_m3", "ppm_ClO4"),
+                   rel_step=0.02, t_settle_s=28800.0, dt_s=5.0,
+                   hold_volume=True, volume_closure="Q_out"):
+    """
+    volume_closure : "Q_out" (histórico) -> dV/dt=0 con Q_out; alpha solo reparte la descarga entre recirculación y
+        purga y el caudal de purga queda FIJADO por el balance de volumen (alpha pierde autoridad sobre ppm).
+        "Q_dil" -> estructura de inventario del lazo (B3520): el MV de calidad es el CAUDAL DE PURGA `Q_purge` [m3/s]
+        (= alpha*Q_out) y el volumen se cierra con el agua de dilución/reposición (Q_dil_cmd esclavo del nivel, con
+        corrección proporcional de V). Usar mv_names=("m_evap", "Q_out", "Q_purge") en ese modo.
+
+    Estima la matriz de ganancias estacionarias G y su RGA (Bristol 1966) integrando
+    directamente con plant.step() y leyendo el estado x = [V, T, C, CP, ..., Qd, S, Sm].
+    Analiza por defecto el bloque 3x3 autorregulado:
+        CVs = (T_C [x[1]], slurry_density_kg_m3 [DIRCAHL], ppm_ClO4)
+        MVs = (m_evap [TIR/PIRCAL], Q_dil_cmd [FIRC], alpha [AIC/FV])
+    manteniendo dV/dt = 0 exacto mediante Q_out (emparejamiento V <-> Q_out, lambda = 1).
+    """
+    x0_arr = np.asarray(x0, dtype=float)
+    u0 = dict(u0)
+    if volume_closure == "Q_dil":
+        u0["Q_purge"] = float(u0["alpha"]) * float(u0["Q_out"])      # caudal de purga base [m3/s]
+    elif volume_closure != "Q_out":
+        raise ValueError("volume_closure debe ser 'Q_out' o 'Q_dil'")
+    m0 = plant.metrics(x0_arr, u0, d0)
+
+    def _get_val(cv, x_vec, m_dict):
+        if cv in m_dict:
+            return float(m_dict[cv])
+        if cv in ("V", "V_m3"):
+            return float(x_vec[0])
+        if cv in ("T_C", "T", "T_cryst_C"):
+            return float(x_vec[1])
+        raise KeyError(f"CV '{cv}' no encontrada en plant.metrics() ni en estado x.")
+
+    n_steps = max(int(round(float(t_settle_s) / float(dt_s))), 1)
+    G = np.zeros((len(cv_names), len(mv_names)), dtype=float)
+    rho_w = float(plant.p.get("rho_water_kg_m3", 1000.0))
+
+    for j, mv in enumerate(mv_names):
+        du = max(abs(float(u0[mv])) * rel_step, 1e-6)
+        u_pert = dict(u0)
+        u_pert[mv] = float(u0[mv]) + du
+        if mv == "alpha":
+            u_pert[mv] = float(np.clip(u_pert[mv], 0.05, 0.99))
+            du = u_pert[mv] - float(u0[mv])
+
+        x = x0_arr.copy()
+        for _ in range(n_steps):
+            if volume_closure == "Q_dil":
+                # dV/dt = Q_stock + Qd - Q_purge - m_evap/rho = 0  ->  Qd esclavo (con corrección proporcional de V)
+                Qp, Qo = float(u_pert["Q_purge"]), float(u_pert["Q_out"])
+                u_pert["alpha"] = float(np.clip(Qp / max(Qo, 1e-9), 0.05, 0.99))
+                Qd_req = Qp + float(u_pert["m_evap"]) / rho_w - float(d0["Q_stock"]) + (float(x0_arr[0]) - float(x[0])) / 600.0
+                u_pert["Q_dil_cmd"] = max(Qd_req, 0.0)
+            elif hold_volume and mv != "Q_out":
+                # Balance exacto dV/dt = Q_stock + Qd - alpha * Q_out - m_evap / rho_w = 0
+                Qd_cur = float(x[10]) if len(x) > 10 else float(u_pert["Q_dil_cmd"])
+                u_pert["Q_out"] = max(
+                    (float(d0["Q_stock"]) + Qd_cur - float(u_pert["m_evap"]) / rho_w) / max(float(u_pert["alpha"]), 1e-3),
+                    1e-6,
+                )
+            x = plant.step(x, u_pert, d0, dt_s)
+        last_m = plant.metrics(x, u_pert, d0)
+
+        for i, cv in enumerate(cv_names):
+            y1 = _get_val(cv, x, last_m)
+            y0 = _get_val(cv, x0_arr, m0)
+            G[i, j] = (y1 - y0) / du
+
+    return G, compute_rga(G), tuple(cv_names), tuple(mv_names)
+
+
+
+
+
+
+class LeadLagCompensator:
+    """
+    Compensador dinámico Lead-Lag discreto para prealimentación (Smith & Corripio; Stephanopoulos):
+        G_ff(s) = gain * (tau_lead * s + 1) / (tau_lag * s + 1)
+    Discretización implícita (incondicionalmente estable para cualquier dt > 0).
+    """
+    def __init__(self, tau_lead, tau_lag, gain=1.0, u0=0.0):
+        self.tau_lead = max(float(tau_lead), 0.0)
+        self.tau_lag = max(float(tau_lag), 1e-6)
+        self.gain = float(gain)
+        self.u_prev = float(u0)
+        self.y_prev = self.gain * float(u0)
+
+    def reset(self, u0=0.0):
+        self.u_prev = float(u0)
+        self.y_prev = self.gain * float(u0)
+
+    def step(self, u, dt):
+        u = float(u)
+        dt = max(float(dt), 1e-9)
+        num = (
+            self.tau_lag * self.y_prev
+            + self.gain * (self.tau_lead + dt) * u
+            - self.gain * self.tau_lead * self.u_prev
+        )
+        y = num / (self.tau_lag + dt)
+        self.u_prev = u
+        self.y_prev = float(y)
+        return float(y)
+
+
+def supersaturation_override_limit(C_in_kg_m3, C_star_kg_m3, R_cmd,
+                                   sigma_min=0.02, R_min=0.0, R_max=0.15):
+    """
+    Selector Override de Sobresaturación (Low-Selector Switch en FFIC 3102):
+    Garantiza que C_mix = C_in / (1 + R) >= (1 + sigma_min) * C_star, protegiendo el lecho
+    cristalino contra redisolución. El exceso (R_cmd - R_applied) se deriva a purga AIC 3255.
+    """
+    C_in = float(C_in_kg_m3)
+    C_req = max((1.0 + float(sigma_min)) * float(C_star_kg_m3), 1e-9)
+    R_sigma_max = float(R_min) if C_in <= C_req else (C_in / C_req) - 1.0
+    R_upper = min(float(R_max), max(float(R_min), R_sigma_max))
+    R_applied = float(np.clip(float(R_cmd), float(R_min), R_upper))
+    override_active = bool(float(R_cmd) > R_upper + 1e-12)
+    excess_ratio = max(float(R_cmd) - R_applied, 0.0)
+    return {
+        "R_applied": R_applied,
+        "R_sigma_max": float(R_sigma_max),
+        "override_active": override_active,
+        "excess_ratio": float(excess_ratio),
+    }
+
+
+def dilution_kclo4_hard_constraint(
+    C_in_kg_m3,
+    C_star_kg_m3,
+    R_cmd,
+    T_stage2_C=43.0,
+    comp_ref=None,
+    F_pre_t_h=378.18,
+    F_dil_ref_t_h=27.14,
+    x_agua_sskd=0.3994,
+    sigma_kclo4_max=0.0,
+    dT_margin_min_C=0.0,
+    sigma_kno3_min=0.02,
+    R_min=0.00053,
+    R_max=0.00661,
+    termo=None,
+):
+    """
+    Acota la razón de dilución R = F_303 / F_pre bajo DOS restricciones duras simultáneas (EDT 4.3):
+      1. Cota inferior (restricción dura KClO4): exige sigma_KClO4(T_eval) <= sigma_kclo4_max
+         en T_eval = T_stage2_C - dT_margin_min_C usando dpbe.m_ClO4_sat / T_saturacion_KClO4
+         calibrados con el ensayo SQM (lnGamma0_KClO4 = 1.571, k_Mg parametrizable).
+      2. Cota superior (Override KNO3 + tope sostenible): garantiza C_mix >= (1 + sigma_kno3_min)*C*
+         y R <= R_max (ej. 2.50 / 378.18 = 0.00661 en régimen sostenible).
+
+    Si R_kclo4_min excede la cota superior factible (min(R_max, R_kno3_max)), el agua se clampa
+    en el techo seguro/sostenible y se activa `purge_required = True`, devolviendo la fracción
+    exacta `clo4_reduction_needed_frac` que debe remover el lazo AIC 3522 -> FV 3522.
+    """
+    from scipy.optimize import brentq
+    from msmpr_core import dpbe
+
+    comp0 = dict(dpbe.COMP_SSKD_DEFAULT if comp_ref is None else comp_ref)
+    F_pre = max(float(F_pre_t_h), 1e-6)
+    F_dil_ref = max(float(F_dil_ref_t_h), 0.0)
+    W_pre = max((F_pre + F_dil_ref) * float(x_agua_sskd) - F_dil_ref, 1e-6)
+    T_eval = float(T_stage2_C) - max(float(dT_margin_min_C), 0.0)
+
+    def _comp_at_R(R_val):
+        F_dil = max(float(R_val), 0.0) * F_pre
+        fac = (W_pre + F_dil_ref) / (W_pre + F_dil)
+        return {k: float(v) * fac for k, v in comp0.items()}
+
+    def _sigma_kclo4_at_R(R_val):
+        c = _comp_at_R(R_val)
+        c_eq = dict(c)
+        c_eq["K"] = min(c["K"], dpbe.m_K_eq_KNO3(T_eval, c, termo))
+        c_eq["NO3"] = c["NO3"] - (c["K"] - c_eq["K"])
+        return dpbe.sobresaturacion_salmuera("KClO4", T_eval, c_eq, termo)
+
+    # 1. Cota superior por Override de sobresaturación de KNO3 + tope de válvula
+    ov = supersaturation_override_limit(
+        C_in_kg_m3, C_star_kg_m3, R_cmd,
+        sigma_min=sigma_kno3_min, R_min=R_min, R_max=R_max,
+    )
+    R_upper = min(float(R_max), max(float(R_min), float(ov["R_sigma_max"])))
+
+    # 2. Cota inferior por restricción dura de saturación de KClO4
+    s_at_zero = _sigma_kclo4_at_R(0.0) - float(sigma_kclo4_max)
+    if s_at_zero <= 0.0:
+        R_kclo4_min = 0.0
+    else:
+        R_hi_search = max(R_upper, 0.50)
+        while _sigma_kclo4_at_R(R_hi_search) - float(sigma_kclo4_max) > 0.0 and R_hi_search < 5.0:
+            R_hi_search *= 2.0
+        if _sigma_kclo4_at_R(R_hi_search) - float(sigma_kclo4_max) > 0.0:
+            R_kclo4_min = float("inf")
+        else:
+            R_kclo4_min = float(brentq(lambda r: _sigma_kclo4_at_R(r) - float(sigma_kclo4_max), 0.0, R_hi_search))
+
+    # 3. Decisión final y derivación a purga AIC 3522 -> FV 3522 si no basta la dilución acotada
+    purge_required = bool(R_kclo4_min > R_upper + 1e-12)
+    if purge_required:
+        R_applied = R_upper
+    else:
+        R_lower = max(float(R_min), R_kclo4_min)
+        R_applied = float(np.clip(float(R_cmd), R_lower, R_upper))
+
+    c_app = _comp_at_R(R_applied)
+    mK_app = min(c_app["K"], dpbe.m_K_eq_KNO3(T_eval, c_app, termo))
+    m_clo4_sat_app = dpbe.m_ClO4_sat(T_eval, mK_app, c_app["Mg"], termo)
+    m_clo4_limit = m_clo4_sat_app * ((1.0 + float(sigma_kclo4_max)) ** 2)
+    clo4_red_frac = max(0.0, 1.0 - (m_clo4_limit / max(c_app["ClO4"], 1e-12)))
+
+    T_sat_app = dpbe.T_saturacion_KClO4(c_app, termo)
+    holgura_app = float(T_stage2_C) - T_sat_app
+
+    return {
+        "R_applied": float(R_applied),
+        "F_303_applied_t_h": float(R_applied * F_pre),
+        "R_kclo4_min": float(R_kclo4_min),
+        "F_303_kclo4_min_t_h": float(R_kclo4_min * F_pre),
+        "R_kno3_max": float(ov["R_sigma_max"]),
+        "R_upper_eff": float(R_upper),
+        "kno3_override_active": bool(ov["override_active"] or (float(R_cmd) > R_upper + 1e-12)),
+        "kclo4_constraint_active": bool(R_kclo4_min > max(float(R_min), float(R_cmd)) + 1e-12),
+        "purge_required": purge_required,
+        "clo4_reduction_needed_frac": float(clo4_red_frac),
+        "m_ClO4_applied": float(c_app["ClO4"]),
+        "m_ClO4_sat": float(m_clo4_sat_app),
+        "T_sat_KClO4_C": float(T_sat_app),
+        "holgura_termica_C": float(holgura_app),
+    }

@@ -149,18 +149,18 @@ def test_routh_hopf_and_npt3_plantwide_kpi():
     assert rh["tau_I_ZN"] < rh["tau_I_TL"]
 
     # 2. Comparación de sintonía Z-N vs Tyreus-Luyben en el tren integrado NPT-3
-    df_zn = simulate_plant_npt3_calibrated(use_AIT3105=True, use_AIC3255=True, tuning_mode="ZN_oscillatory")
-    df_tl = simulate_plant_npt3_calibrated(use_AIT3105=True, use_AIC3255=True, tuning_mode="TL_damped")
+    df_zn = simulate_plant_npt3_calibrated(use_AIT3105=True, use_AIC3522=True, tuning_mode="ZN_oscillatory")
+    df_tl = simulate_plant_npt3_calibrated(use_AIT3105=True, use_AIC3522=True, tuning_mode="TL_damped")
     tv_zn = float(np.sum(np.abs(np.diff(df_zn["P_vac2_bar"].values))))
     tv_tl = float(np.sum(np.abs(np.diff(df_tl["P_vac2_bar"].values))))
     assert tv_tl < tv_zn  # Tyreus-Luyben exige menor variación total (TV) en la válvula de vacío
 
-    # 3. Verificación del lazo FFIC 3102 -> FIRC 3103 SIN vs CON AIT 3105 + AIC 3255
-    df_sin_ait = simulate_plant_npt3_calibrated(use_AIT3105=False, use_AIC3255=False, tuning_mode="TL_damped")
-    df_con_ambos = simulate_plant_npt3_calibrated(use_AIT3105=True, use_AIC3255=True, tuning_mode="TL_damped")
+    # 3. Verificación del lazo FFIC 3102 -> FIRC 3103 SIN vs CON AIT 3105 + AIC 3522
+    df_sin_ait = simulate_plant_npt3_calibrated(use_AIT3105=False, use_AIC3522=False, tuning_mode="TL_damped")
+    df_con_ambos = simulate_plant_npt3_calibrated(use_AIT3105=True, use_AIC3522=True, tuning_mode="TL_damped")
 
     max_ppm_sin = float(df_sin_ait["ppm_ClO4_final_6000"].max())
     max_ppm_con = float(df_con_ambos["ppm_ClO4_final_6000"].max())
 
     assert max_ppm_sin > 40.0  # Sin AIT 3105 viola la especificación de 40 ppm en Área 6000
-    assert max_ppm_con < 40.0  # Con AIT 3105 + AIC 3255 cumple holgadamente (< 40 ppm)
+    assert max_ppm_con < 40.0  # Con AIT 3105 + AIC 3522 cumple holgadamente (< 40 ppm)

@@ -64,7 +64,7 @@ def test_sin_constantes_antiguas_en_plant():
 def test_trim_ait_no_satura_la_valvula_en_regimen():
     # Antes (K=5.2e-4) la consigna quedaba en el tope ~73 % del tiempo. Con el escenario combinado (+8 % de flujo y +650 ppm)
     # un tope transitorio es esperable; el estado final y la fraccion de tiempo saturado deben ser bajos.
-    d = sim_npt3(use_AIT3105=True, use_AIC3255=True)
+    d = sim_npt3(use_AIT3105=True, use_AIC3522=True)
     sat = (d.F_303_sp_t_h >= 42.0 - 0.01).mean()
     assert sat < 0.10
     assert d.F_303_sp_t_h.iloc[-1] < 42.0 - 1.0
@@ -86,7 +86,7 @@ def test_razon_dilucion_documentada():
 
 
 def test_balance_masa_nominal_cierra():
-    d = sim_npt3(use_AIT3105=False, use_AIC3255=False, duration_min=5.0)
+    d = sim_npt3(use_AIT3105=False, use_AIC3522=False, duration_min=5.0)
     assert abs(d["dMass_A3110_t_h"].iloc[0]) < 0.05           # F1 - vapor - perdidas - F6 = 0 en el nominal
 
 
@@ -101,7 +101,7 @@ def sim_cascada():
 
 
 def test_nivel_inicia_en_reposo_y_cierra_balance_nominal():
-    d = sim_npt3(use_AIT3105=False, use_AIC3255=False, duration_min=3.0)
+    d = sim_npt3(use_AIT3105=False, use_AIC3522=False, duration_min=3.0)
     for c in ("dMass_A3110_t_h", "dMass_A3210_t_h"):
         assert abs(d[c].iloc[0]) < 0.05
     assert d.L1.iloc[0] == pytest.approx(1.0) and d.L2.iloc[0] == pytest.approx(1.0)
@@ -149,7 +149,7 @@ def test_cascada_de_densidad_opcional_mueve_la_consigna(sim_cascada):
 
 def test_ppm_con_nivel_sigue_cumpliendo_criterios(sims):
     assert sims["TL_damped"].ppm_ClO4_final_6000.max() < 40.0
-    sin = sim_npt3(use_AIT3105=False, use_AIC3255=False)
+    sin = sim_npt3(use_AIT3105=False, use_AIC3522=False)
     assert sin.ppm_ClO4_final_6000.max() > 40.0
 
 

@@ -1,0 +1,79 @@
+{
+ "trazador": {
+  "n": 3391,
+  "licor_adherido_mediana_pct": 4.74875,
+  "frac_exceso_mediana": 0.3265339161405213,
+  "frac_exceso_p25_p75": [
+   0.17039042042729,
+   0.7255504636815584
+  ],
+  "AUC_refinado_gt40": {
+   "clo4_cristal_medido": 0.7544026557503006,
+   "explicado_por_licor": 0.401457407213383,
+   "exceso_no_explicado": 0.793736560346849,
+   "kclo4_ml_refinacion": 0.7713384896698647
+  },
+  "spearman_exceso_vs_Mg_licor": 0.29392603790983746,
+  "spearman_exceso_vs_ClO4_licor": 0.12486481372646102,
+  "por_nivel_clo4_cristal": {
+   "(0.0, 200.0]": {
+    "n": 1789.0,
+    "frac_exceso_mediana": 0.19675010979358798,
+    "pct_refinado_gt40": 6.036892118501956
+   },
+   "(200.0, 400.0]": {
+    "n": 756.0,
+    "frac_exceso_mediana": 0.4617781720995444,
+    "pct_refinado_gt40": 15.608465608465607
+   },
+   "(400.0, 600.0]": {
+    "n": 335.0,
+    "frac_exceso_mediana": 0.7689189189189188,
+    "pct_refinado_gt40": 27.164179104477608
+   },
+   "(600.0, 1000000.0]": {
+    "n": 511.0,
+    "frac_exceso_mediana": 0.8527931646211216,
+    "pct_refinado_gt40": 49.11937377690802
+   }
+  }
+ },
+ "envolvente_kclo4_vs_mg": [
+  {
+   "Mg": "(0, 20]",
+   "n": "86",
+   "mediana": "3.7",
+   "techo": "4.3"
+  },
+  {
+   "Mg": "(20, 25]",
+   "n": "245",
+   "mediana": "4.7",
+   "techo": "5.9"
+  },
+  {
+   "Mg": "(25, 30]",
+   "n": "1407",
+   "mediana": "5.2",
+   "techo": "5.9"
+  },
+  {
+   "Mg": "(30, 35]",
+   "n": "1654",
+   "mediana": "5.1",
+   "techo": "6.0"
+  },
+  {
+   "Mg": "(35, 40]",
+   "n": "572",
+   "mediana": "4.9",
+   "techo": "5.9"
+  },
+  {
+   "Mg": "(40, 60]",
+   "n": "41",
+   "mediana": "4.2",
+   "techo": "5.1"
+  }
+ ]
+}
