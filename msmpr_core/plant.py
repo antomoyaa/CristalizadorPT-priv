@@ -1242,6 +1242,37 @@ VENTANA_OPERACION_DEFAULT = {
 }
 
 
+def exportar_ventana_operacion(ventana: dict, ruta=None, origen: str = "") -> dict:
+    """Valida y escribe el contrato `config/ventana_operacion.json` desde el modelo DPBE·MSMPR (evita copiarlo a mano).
+
+    Debe llamarse desde la celda de selección de setpoint (§9.5 de Cristalizador_SQM.ipynb) con los valores calculados.
+    Valida coherencia (D_min <= D_nom <= D_max, setpoints dentro de sus rangos, alpha dentro de sus límites) y
+    agrega `origen` (notebook, fecha, commit) para trazabilidad. Devuelve el diccionario escrito.
+    """
+    import json
+    from datetime import datetime
+    from pathlib import Path
+
+    v = {**VENTANA_OPERACION_DEFAULT, **ventana}
+    errores = []
+    if not (v["D_min_t_h"] <= v["D_nom_t_h"] <= v["D_max_t_h"]):
+        errores.append("D_min_t_h <= D_nom_t_h <= D_max_t_h")
+    if not (v["alpha_min"] <= v["alpha_nom"] <= v["alpha_max"]):
+        errores.append("alpha_min <= alpha_nom <= alpha_max")
+    if not (v["T1_range_C"][0] <= v["T1_sp_C"] <= v["T1_range_C"][1]):
+        errores.append("T1_sp_C dentro de T1_range_C")
+    if not (v["T2_range_C"][0] <= v["T2_sp_C"] <= v["T2_range_C"][1]):
+        errores.append("T2_sp_C dentro de T2_range_C")
+    if v["C_ClO4_sp_g_L"] >= v["C_ClO4_sat_g_L"]:
+        errores.append("C_ClO4_sp_g_L < C_ClO4_sat_g_L")
+    if errores:
+        raise ValueError("Ventana de operación incoherente: " + "; ".join(errores))
+    out = {**v, "origen": origen or "sin especificar", "generado": datetime.now().isoformat(timespec="seconds")}
+    p = Path(ruta) if ruta is not None else Path(__file__).resolve().parents[1] / "config" / "ventana_operacion.json"
+    p.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
 def cargar_ventana_operacion(ruta=None) -> dict:
     """Carga el contrato de ventana operacional (JSON) emitido por el modelo DPBE·MSMPR."""
     import json

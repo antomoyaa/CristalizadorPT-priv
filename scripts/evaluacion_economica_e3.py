@@ -14,6 +14,9 @@ import matplotlib.pyplot as plt
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+AHORRO_REAL = 3.96   # se recalcula en main() con la simulación de planta
+AGUA_REAL_SIM = 16.0
+
 SUPUESTOS_E3 = {
     "capex_eq_A": 52100.0,        # USD (FV 3522 + sensorica/DCS + DB&B, planilla equipo)
     "capex_eq_B_extra": 85000.0,  # USD adicionales por analizadores en línea AIT 3105 / AIC 3522
@@ -30,12 +33,28 @@ SUPUESTOS_E3 = {
     "tarifa_agua": 1.95,          # USD/m³ (tarifa SISS / agua industrial)
     "ahorro_agua_t_h": 0.0,       # t/h agua dilución ahorrada (0,0 Caso Base; 7,96 Fase 1)
     "wacc": 0.1411,               # Tasa de descuento anual (14,11 %)
-    "tax_y12": 0.255,             # Impuesto 1ra categoría años 1-2 (25,5 %)
-    "tax_y3p": 0.230,             # Impuesto proyectado desde año 3 / 2029 (23,0 %)
+    "tax_y1": 0.255,              # Impuesto 1ra categoría año 1 = 2027 (25,5 %)
+    "tax_y2": 0.240,              # año 2 = 2028 (24,0 %)
+    "tax_y3p": 0.230,             # desde el año 3 = 2029 (23,0 %); gradualidad de la ley de agosto 2026 (supone año 1 = 2027)
     "dep_years": 5,               # Depreciación lineal 5 años sobre FCI
     "horizon": 10,                # Horizonte de evaluación (años)
     "ramp_y1": 0.50,              # Reconocimiento 50 % beneficios en Año 1
 }
+
+
+def ahorro_agua_realizado_t_h(D_nom: float = 12.0, agua_real: float = 19.96) -> tuple[float, float]:
+    """Ahorro de agua REALIZADO (no nominal) de la simulación de planta bajo las perturbaciones de la ventana.
+
+    Devuelve (ahorro [t/h] respecto de la media real de planta, agua media realizada [t/h]). El setpoint nominal no es el agua
+    realizada: los trims por ClO4-/Mg del lazo agregan agua al perturbarse la planta.
+    """
+    import sys
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from msmpr_core import plant as P
+    ventana = P.cargar_ventana_operacion()
+    _, res = P.simular_desde_ventana_operacion({**ventana, "D_nom_t_h": D_nom})
+    return max(agua_real - float(res["agua_media_t_h"]), 0.0), float(res["agua_media_t_h"])
 
 
 def calcular_van(flujos: np.ndarray, tasa: float) -> float:
@@ -97,7 +116,7 @@ def evaluar_proyecto(sup: dict, alternativa: str = "A") -> tuple[dict, pd.DataFr
         ebitda = ben - opex_tot
         dep = dep_ann if yr <= s["dep_years"] else 0.0
         ebit = ebitda - dep
-        tr = s["tax_y12"] if yr <= 2 else s["tax_y3p"]
+        tr = s["tax_y1"] if yr == 1 else (s["tax_y2"] if yr == 2 else s["tax_y3p"])
         tax = max(ebit * tr, 0.0)
         fc = ebitda - tax
         dfc = fc / ((1.0 + s["wacc"]) ** yr)
@@ -133,6 +152,8 @@ def evaluar_proyecto(sup: dict, alternativa: str = "A") -> tuple[dict, pd.DataFr
 
 
 def main():
+    global AHORRO_REAL
+    AHORRO_REAL, AGUA_REAL_SIM = ahorro_agua_realizado_t_h()
     ra, fc_a = evaluar_proyecto(SUPUESTOS_E3, "A")
     rb, fc_b = evaluar_proyecto(SUPUESTOS_E3, "B")
     df_comp = pd.DataFrame([ra, rb])
@@ -140,7 +161,8 @@ def main():
     escenarios = [
         ("Conservador Estricto (Δη=1,3 %, f=2,2, P=800)", dict(delta_eta=0.013, f_inst=2.2, precio_kno3=800.0)),
         ("Caso Base Conservador (Δη=2,0 %, sin agua dil.)", dict()),
-        ("Objetivo Fase 1 Balanceada (Δη=2,5 % + ahorro agua -40 %)", dict(delta_eta=0.025, ahorro_agua_t_h=7.96)),
+        ("Fase 1 con ahorro de agua NOMINAL (Δη=2,5 % + 7,96 t/h, cota superior)", dict(delta_eta=0.025, ahorro_agua_t_h=7.96)),
+        (f"Fase 1 con ahorro de agua REALIZADO ({AHORRO_REAL:.2f} t/h; Δη=2,5 %)", dict(delta_eta=0.025, ahorro_agua_t_h=AHORRO_REAL)),
         ("Optimista (Δη=5,0 % meta SQM, f=1,5, P=950)", dict(delta_eta=0.050, f_inst=1.5, precio_kno3=950.0)),
     ]
     rows_esc = []
@@ -158,7 +180,7 @@ def main():
     van_base = ra["VAN [kUSD]"]
     specs_tor = [
         ("Mejora eficiencia Δη (1,0 % vs 3,5 %)", dict(delta_eta=0.010), dict(delta_eta=0.035)),
-        ("Ahorro agua dilución Fase 1 (0 vs 7,96 t/h)", dict(ahorro_agua_t_h=0.0), dict(ahorro_agua_t_h=7.96)),
+        ("Ahorro agua dilución Fase 1 (0 vs 7,96 t/h nominal)", dict(ahorro_agua_t_h=0.0), dict(ahorro_agua_t_h=7.96)),
         ("Factor instalación f_inst (3,5 vs 1,5)", dict(f_inst=3.5), dict(f_inst=1.5)),
         ("Margen operacional (12 % vs 18 %)", dict(margen_op=0.12), dict(margen_op=0.18)),
         ("Tasa descuento WACC (18 % vs 10 %)", dict(wacc=0.18), dict(wacc=0.10)),
@@ -203,10 +225,11 @@ def main():
 
     md = [
         "# Evaluación Económica E3 (Calibrada con Planilla del Equipo — Towler & Sinnott)\n",
-        "Base: WACC = `14,11 %`, horizonte `10 años`, depreciación lineal `5 años` sobre FCI, rampa `50 %` Año 1, impuesto `25,5 %` (años 1-2) y `23,0 %` (desde año 3), campaña de calibración `3,0 kUSD`.\n",
+        "Base: WACC = `14,11 %`, horizonte `10 años`, depreciación lineal `5 años` sobre FCI, rampa `50 %` Año 1, impuesto `25,5 %` (año 1 = 2027), `24,0 %` (año 2) y `23,0 %` (desde año 3), con año 1 = 2027, campaña de calibración `3,0 kUSD`.\n",
         "## 1. Comparativa de Alternativas (Caso Base Conservador, Δη = 2,0 % sin crédito de agua de dilución)\n",
         df_comp.to_markdown(index=False),
-        "\n\n## 2. Escenarios de Alternativa A (incluyendo Fase 1 Balanceada con −40 % agua)\n",
+        "\n\n## 2. Escenarios de Alternativa A (Fase 1: ahorro de agua nominal y realizado)\n",
+        f"El setpoint de Fase 1 (12,0 t/h) recorta 7,96 t/h solo en términos nominales; bajo las perturbaciones de la simulación el agua media realizada es {AGUA_REAL_SIM:.1f} t/h, es decir un ahorro de {AHORRO_REAL:.2f} t/h frente a la media real de 19,96 t/h. El escenario nominal es una cota superior.\n",
         df_esc.to_markdown(index=False),
         "\n\n## 3. Análisis de Sensibilidad (Tornado — 6 Variables)\n",
         df_tor.to_markdown(index=False),
