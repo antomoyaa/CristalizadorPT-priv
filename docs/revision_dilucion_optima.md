@@ -6,7 +6,9 @@ acotado a 12–42 t/h) con trims por ClO₄⁻ (AIT 3105) y Mg²⁺. Los "óptim
 | Fuente | F_303 | Criterio |
 |---|---|---|
 | Diseño / planta (medido) | 27,14 / 19,96 t/h | nominal PFD / media campaña nov-2026 |
-| README y replay | 0,50 t/h | régimen "sostenible" (sin validación; ver `docs/diagnostico_replay.md`) |
+| Replay original | 0,50 t/h | **descartado**: inviable hidráulicamente (Bloque 2) y sin balance de agua |
+| Plan por fases (Bloque 2 / E3) | Fase 1: 12,0 nominal (≈ 16,0 realizado); Fase 2: 5,0 (falla la ventana) | balance hidráulico de B3520 + simulación de planta |
+| DPBE·MSMPR §9.5 / `config/ventana_operacion.json` | 15,0 (tolerancia ≈ 2) | setpoint de la ventana; el DPBE predice coprecipitación bajo ≈ 13 |
 | Paso 10 (NB06), tabla de Pareto | 36,8 t/h | mín J en una grilla gruesa con ruido; el "óptimo" estaba fijado a mano |
 | Paso 10, barrido fino sin ruido | 32 t/h mínimo con pico ≤ 40 ppm; mín J = 34 t/h | mismo modelo, escalón +650 ppm ClO₄⁻ |
 | 6.7 (`scripts/barrido_dilucion.py`) | ≥ 22 t/h (ClO₄⁻ +550 ppm); ≥ 44 t/h (Mg²⁺ +35 %) | mínimo F_303 constante con ppm ≤ 40 |

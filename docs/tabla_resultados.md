@@ -69,7 +69,8 @@ Fuentes: simulaciones de este repositorio (`msmpr_core`, NB05/NB06), base quími
 | Fuente / escenario | F303 [t/h] | Criterio |
 |---|---|---|
 | Diseño PFD / medido en planta | 27,14 / 19,96 | nominal / media nov-2026 |
-| Propuesta (README, replay) | 0,50 (promedio 0,67–0,98) | contrafactual sin balance de agua cerrado |
+| Replay original | 0,50 (promedio 0,67–0,98) | **descartado**: inviable hidráulicamente (Bloque 2); sin balance de agua |
+| Plan por fases (Bloque 2 / E3), setpoint → agua media realizada | Fase 1: 12,0 → 16,0; Fase 2: 5,0 → 6,7 (falla la ventana) | simulación de planta desde `config/ventana_operacion.json` |
 | 6.7, ClO4- +550 ppm | ≥ 22 | mín. F303 constante con ppm ≤ 40 |
 | 6.7, Mg2+ +35 % | ≥ 44 (46 con 2 ppm de margen) | ídem |
 | 6.8c (+650 ppm ClO4-), barrido fino sin ruido | ≥ 32 (mín. J: 34) | pico ≤ 40 ppm |
@@ -94,7 +95,7 @@ Escenario dinámico de 300 min con escalones simultáneos de carga (`+8 %`), tem
 |---|---|---|---|---|---|
 | Actual SIN cascada T→P (`PIRCAL` manual, 27,1 t/h) | 41,79 / 41,73 | 27,93 | 64,02 (61,9 % >40) | 538,6 / 188,6 | 467,0 / 517,4 |
 | Cascada TIR→PIRCAL + Dilución PFD (27,1 t/h) | 40,52 / 40,00 | 36,20 | 26,37 (0,0 % >40) | 528,1 / 185,6 | 452,7 / 500,2 |
-| Cascada TIR→PIRCAL + Sostenible (0,50 t/h + AIC 3522) | 40,52 / 40,00 | 0,67 | 22,65 (0,0 % >40) | 576,2 / 185,0 | 514,0 / 564,0 |
+| Cascada TIR→PIRCAL + régimen 0,50 t/h descartado (+ AIC 3522; ilustrativo) | 40,52 / 40,00 | 0,67 | 22,65 (0,0 % >40) | 576,2 / 185,0 | 514,0 / 564,0 |
 
 ## 9. Magnesio y perclorato (tabla horaria 2025, n = 3 391; `docs/analisis_mg_perclorato.md`)
 

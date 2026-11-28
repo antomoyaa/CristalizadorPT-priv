@@ -171,3 +171,20 @@ def test_columnas_kno3_y_d50_en_simulacion_integrada():
         assert c in sost.columns and sost[c].notna().all()
     assert sost["C_KNO3_in1_kg_m3"].mean() > pfd["C_KNO3_in1_kg_m3"].mean()
     assert sost["d50_2_um"].iloc[-1] > pfd["d50_2_um"].iloc[-1]
+
+
+# ----------------------------------------------------------------- puente modelo -> PID (ventana de operación)
+def test_exportar_ventana_operacion_ida_y_vuelta(tmp_path):
+    ruta = tmp_path / "ventana.json"
+    out = plant.exportar_ventana_operacion({"D_nom_t_h": 14.0}, ruta=ruta, origen="test")
+    assert out["origen"] == "test" and ruta.exists()
+    assert plant.cargar_ventana_operacion(ruta)["D_nom_t_h"] == 14.0
+
+
+def test_exportar_ventana_operacion_rechaza_incoherencias(tmp_path):
+    with pytest.raises(ValueError):
+        plant.exportar_ventana_operacion({"D_nom_t_h": 50.0}, ruta=tmp_path / "x.json")        # D_nom > D_max
+    with pytest.raises(ValueError):
+        plant.exportar_ventana_operacion({"T2_sp_C": 50.0}, ruta=tmp_path / "x.json")          # fuera de rango
+    with pytest.raises(ValueError):
+        plant.exportar_ventana_operacion({"C_ClO4_sp_g_L": 5.0}, ruta=tmp_path / "x.json")     # sp >= C_sat

@@ -6,7 +6,7 @@ Estado al 25-nov-2026. Clasifica cada pendiente según quién lo resuelve y si a
 
 | Pendiente | Qué hacer | Esfuerzo |
 |---|---|---|
-| Cifra de dilución única | Presentar 0,50 t/h como hipótesis de diseño y mostrar el rango 22–44 t/h de los modelos acoplados (`docs/revision_dilucion_optima.md`) | 1–2 h (parche de .md ya hecho) |
+| Cifra de dilución única | Presentar el plan por fases (Fase 1: 12,0 t/h nominal ≈ 16,0 realizado; 0,50 t/h descartado) y el rango 22–44 t/h de los modelos acoplados (`docs/revision_dilucion_optima.md`) | 1–2 h (parche de .md ya hecho) |
 | Replay sin balance de agua | Agregar balance de volumen del lazo B3520 al replay y repetir el contrafactual | 1–2 días |
 | Beneficio de KNO3 (+6 t/h) | Análisis de sensibilidad de `K_AGUA` y `K_PURGA` (rango 0,03–0,6 t/m3 de pérdida por purga) y reportar un intervalo | 0,5–1 día |
 | Etiquetas con números fijos (celdas 11, 17, 19, 23 del NB06) | Calcularlas de los datos; rotular las curvas de Hopf del Paso 10 como ilustrativas | 0,5 día |
@@ -37,7 +37,7 @@ Estado al 25-nov-2026. Clasifica cada pendiente según quién lo resuelve y si a
 
 - Calibración de kG, kB y Kd con ensayos sembrados del KNO3 real (semanas de laboratorio).
 - PXRD y lavado escalonado completos (2–3 semanas de laboratorio y análisis).
-- Validación en planta de la dilución a 0,50 t/h y de los lazos `AIT 3105`/`AIC 3522` (requiere HAZOP, instalación y campaña).
+- Validación en planta del plan de dilución por fases y de los lazos `AIT 3105`/`AIC 3522` (requiere HAZOP, instalación y campaña).
 - Modelo de descarga de cristales para resolver la RGA del bloque T/ρ (desarrollo de 2–3 días; baja prioridad frente a lo económico).
 - Optimizar F303 con datos reales (depende de B).
 

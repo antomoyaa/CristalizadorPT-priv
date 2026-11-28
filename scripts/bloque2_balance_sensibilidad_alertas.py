@@ -98,6 +98,24 @@ def evaluar_escenarios_b3520() -> tuple[pd.DataFrame, dict]:
     return pd.DataFrame(filas), series
 
 
+def chequeo_balance_clo4(df_bal: pd.DataFrame, c_base_g_L: float = 3.5862, q_base_m3_h: float = 22.0,
+                         c_sat_g_L: float = 4.50, carga_total_kg_h: float = 564.0) -> pd.DataFrame:
+    """Chequeo de primer orden: concentración de ClO4- en B3520 si la purga fuera el sumidero dominante.
+
+    C_ss = C_base * Q_base / Q_purga_efectiva (la masa de ClO4- exportada por la purga se mantiene). Es una COTA SUPERIOR: solo vale si la purga
+    de B3520 es el sumidero principal. Con 22 m3/h * 3,59 g/L ≈ 79 kg/h frente a 564 kg/h de carga de diseño (Entrega 2: 438 kg/h salen por la purga
+    de licor madre de cristalización), la purga de B3520 parece NO serlo; falta confirmar con SQM qué fracción exporta FV 3522.
+    """
+    filas = []
+    for _, r in df_bal.iterrows():
+        q = max(float(r["Purga efectiva con LSL [m³/h]"]), 0.1)
+        c = c_base_g_L * q_base_m3_h / q
+        filas.append({"Escenario": r["Escenario"], "Purga efectiva [m³/h]": round(q, 2), "Export. ClO4 por purga [kg/h]": round(q * c_base_g_L, 1),
+                      "C_ClO4 B3520 cota sup. [g/L]": round(c, 2), "Margen a C_sat 4,50 g/L [g/L]": round(c_sat_g_L - c, 2),
+                      "Fracción de la carga de diseño exportada (base)": round(q_base_m3_h * c_base_g_L / carga_total_kg_h, 2)})
+    return pd.DataFrame(filas)
+
+
 def sensibilidad_beneficio_kno3() -> tuple[pd.DataFrame, pd.DataFrame]:
     k_aguas = [0.15, 0.25, 0.38, 0.45]
     k_purgas = [0.03, 0.055, 0.15, 0.30, 0.60]
@@ -115,11 +133,11 @@ def sensibilidad_beneficio_kno3() -> tuple[pd.DataFrame, pd.DataFrame]:
 def construir_regla_alerta_empirica() -> tuple[pd.DataFrame, dict]:
     tabla_base = pd.DataFrame([
         {"Nivel": "Verde (Normal)", "Condición operativa (LIMS c/2 h)": "ML Refi <= 1,2 g/L y Crudo <= 300 ppm",
-         "P(>40 ppm) empírica [%]": 2.0, "Acción de control recomendada": "Operación Fase 1: agua 12,0 t/h, purga base ~12 m³/h, cascada TIR->PIRCAL en 40 °C."},
+         "P(>40 ppm) empírica [%]": 2.0, "Acción de control recomendada": "Operación Fase 1: agua 12,0 t/h y purga base ~12 m³/h (cascada TIR->PIRCAL opcional, no solicitada por SQM)."},
         {"Nivel": "Amarillo (Preventivo)", "Condición operativa (LIMS c/2 h)": "ML Refi 1,2-2,0 g/L o Crudo 300-400 ppm",
          "P(>40 ppm) empírica [%]": 11.7, "Acción de control recomendada": "Aviso en DCS; alistar pulso FV 3522 y verificar estabilidad T2 (A3210)."},
         {"Nivel": "Naranja (Alerta)", "Condición operativa (LIMS c/2 h)": "ML Refi 2,0-3,0 g/L o Crudo 400-600 ppm",
-         "P(>40 ppm) empírica [%]": 25.8, "Acción de control recomendada": "Pulso modulante FV 3522 (24-26 m³/h), trim térmico T2 (+1-2 °C) y purga ML Área 6000."},
+         "P(>40 ppm) empírica [%]": 25.8, "Acción de control recomendada": "Pulso modulante FV 3522 (24-26 m³/h) y purga ML Área 6000 (ajuste de T2 solo si se habilita la cascada opcional)."},
         {"Nivel": "Rojo (Crítico)", "Condición operativa (LIMS c/2 h)": "ML Refi > 3,0 g/L o Crudo > 600 ppm",
          "P(>40 ppm) empírica [%]": 46.2, "Acción de control recomendada": "Purga máxima segura protegida por LSL (20 %), purga intensiva ML Refi y desvío preventivo."},
     ])
@@ -187,6 +205,7 @@ def construir_regla_alerta_empirica() -> tuple[pd.DataFrame, dict]:
 def main():
     df_bal, series = evaluar_escenarios_b3520()
     df_f1, df_30d = sensibilidad_beneficio_kno3()
+    df_clo4 = chequeo_balance_clo4(df_bal)
     df_alert, met_alert = construir_regla_alerta_empirica()
 
     fig, ax = plt.subplots(1, 3, figsize=(16, 4.8))
@@ -239,6 +258,9 @@ def main():
         + (f", Logística combinada = `{met_alert['auc_combinado_logistica']}`" if met_alert.get("auc_combinado_logistica") else "")
         + "\n\n",
         df_alert.to_markdown(index=False),
+        "\n\n## 4. Chequeo de balance de ClO₄⁻ con la purga promedio de B3520\n",
+        "Cota superior si la purga de B3520 fuera el sumidero dominante (C_ss = C_base·Q_base/Q_efectiva); ver docstring de `chequeo_balance_clo4`.\n",
+        df_clo4.to_markdown(index=False),
         "\n",
     ]
     (ROOT / "docs" / "bloque2_resultados_y_alertas.md").write_text("\n".join(md), encoding="utf-8")

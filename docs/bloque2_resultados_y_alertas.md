@@ -44,8 +44,19 @@ La arquitectura balanceada por etapas (coordinando nivel `LIC B3520` con pulsos 
 
 | Nivel                 | Condición operativa (LIMS c/2 h)        |   P(>40 ppm) empírica [%] | Acción de control recomendada                                                              |
 |:----------------------|:----------------------------------------|--------------------------:|:-------------------------------------------------------------------------------------------|
-| Verde (Normal)        | ML Refi <= 1,2 g/L y Crudo <= 300 ppm   |                       2   | Operación Fase 1: agua 12,0 t/h, purga base ~12 m³/h, cascada TIR->PIRCAL en 40 °C.        |
+| Verde (Normal)        | ML Refi <= 1,2 g/L y Crudo <= 300 ppm   |                       2   | Operación Fase 1: agua 12,0 t/h y purga base ~12 m³/h (cascada TIR->PIRCAL opcional, no solicitada por SQM).        |
 | Amarillo (Preventivo) | ML Refi 1,2-2,0 g/L o Crudo 300-400 ppm |                      11.7 | Aviso en DCS; alistar pulso FV 3522 y verificar estabilidad T2 (A3210).                    |
-| Naranja (Alerta)      | ML Refi 2,0-3,0 g/L o Crudo 400-600 ppm |                      25.8 | Pulso modulante FV 3522 (24-26 m³/h), trim térmico T2 (+1-2 °C) y purga ML Área 6000.      |
+| Naranja (Alerta)      | ML Refi 2,0-3,0 g/L o Crudo 400-600 ppm |                      25.8 | Pulso modulante FV 3522 (24-26 m³/h) y purga ML Área 6000 (ajuste de T2 solo si se habilita la cascada opcional).      |
 | Rojo (Crítico)        | ML Refi > 3,0 g/L o Crudo > 600 ppm     |                      46.2 | Purga máxima segura protegida por LSL (20 %), purga intensiva ML Refi y desvío preventivo. |
 
+## 4. Chequeo de balance de ClO₄⁻ con la purga promedio de B3520
+
+Cota superior si la purga de B3520 fuera el sumidero dominante (C_ss = C_base·Q_base/Q_efectiva); ver docstring de `chequeo_balance_clo4`.
+
+| Escenario                                                         |   Purga efectiva [m³/h] |   Export. ClO4 por purga [kg/h] |   C_ClO4 B3520 cota sup. [g/L] |   Margen a C_sat 4,50 g/L [g/L] |   Fracción de la carga de diseño exportada (base) |
+|:------------------------------------------------------------------|------------------------:|--------------------------------:|-------------------------------:|--------------------------------:|--------------------------------------------------:|
+| 1. Real SQM (19,96 t/h; purga 22,0 m³/h)                          |                   22    |                            78.9 |                           3.59 |                            0.91 |                                              0.14 |
+| 2. Corte extremo SIN balance (0,98 t/h + purga 38,4 fija)         |                    3.68 |                            13.2 |                          21.44 |                          -16.94 |                                              0.14 |
+| 3. Propuesta Fase 1 (-40 % agua: 12,0 t/h + pulsos 26 m³/h + LIC) |                   13.89 |                            49.8 |                           5.68 |                           -1.18 |                                              0.14 |
+| 4. Propuesta Fase 2 (-75 % agua: 5,0 t/h + pulsos 18 m³/h + LIC)  |                    6.9  |                            24.7 |                          11.43 |                           -6.93 |                                              0.14 |
+| 5. Respaldo hidráulico (19,96 t/h + pulsos 36 m³/h + LIC)         |                   21.83 |                            78.3 |                           3.61 |                            0.89 |                                              0.14 |
